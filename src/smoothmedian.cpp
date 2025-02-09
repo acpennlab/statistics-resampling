@@ -166,6 +166,10 @@ void mexFunction (int nlhs, mxArray* plhs[],
         // Omit NaN values and calculate the length of the resulting vector
         xvec.erase (remove_if (xvec.begin(), xvec.end(), mxIsNaN), xvec.end());
         l = xvec.size ();
+        if (l == 0) {
+            M[k] = NAN;
+            break;
+        }
 
         // Set the (ordinary) median as the starting value
         mid = 0.5 * l;

@@ -91,13 +91,13 @@ void mexFunction (int nlhs, mxArray* plhs[],
         if ( mxIsComplex (prhs[0]) ) {
             mexErrMsgTxt ("The first input argument (N) cannot contain an imaginary part.");
         }
-        if ( *x != int(*x) ) {
+        if ( *x != static_cast<int>(*x) ) {
             mexErrMsgTxt ("The value of the first input argument (N) must be a positive integer.");
         }
         if ( !mxIsFinite (*x) ) {
             mexErrMsgTxt ("The first input argument (N) cannot be NaN or Inf.");
         }
-        n = *x;
+        n = static_cast<int>(*x);
     }
     if ( !mxIsClass (prhs[0], "double") ) {
         mexErrMsgTxt ("The first input argument (N or X) must be of type double.");

@@ -62,6 +62,8 @@
 // [1] Brown, Hall and Young (2001) The smoothed median and the
 //      bootstrap. Biometrika 88(2):519-534
 //
+// Requirements: Compilation requires C++98
+//
 // Author: Andrew Charles Penn (2022)
 
 
@@ -168,7 +170,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
         l = xvec.size ();
         if (l == 0) {
             M[k] = NAN;
-            break;
+            continue;
         }
 
         // Set the (ordinary) median as the starting value

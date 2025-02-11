@@ -13,7 +13,7 @@
 // INPUT VARIABLES
 // X (double) is the data vector or matrix.
 // DIM (double) is the dimension (1 for columnwise, 2 for rowwise).
-// TOL (double) sets the step size that will to stop optimization.
+// TOL (double) sets the step size that will stop optimization.
 //
 // OUTPUT VARIABLE
 // M (double) is a scalar or vector of the smoothed median(s)

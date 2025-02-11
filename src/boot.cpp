@@ -103,7 +103,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
         mexErrMsgTxt ("The first input argument (N or X) must be of type double.");
     }
     // Second input argument (nboot)
-    const int nboot = *(mxGetPr (prhs[1]));     // 32-bit int
+    const int nboot = static_cast<const int> ( *(mxGetPr (prhs[1])) );  // 32-bit int
     if ( mxGetNumberOfElements (prhs[1]) > 1 ) {
         mexErrMsgTxt ("The second input argument (NBOOT) must be scalar.");
     }
@@ -125,7 +125,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
         if (mxGetNumberOfElements (prhs[2]) > 1 || !mxIsClass (prhs[2], "logical")) {
             mexErrMsgTxt ("The third input argument (LOO) must be a logical scalar value.");
         }
-        loo = *(mxGetLogicals (prhs[2]));
+        loo = static_cast<bool> ( *(mxGetLogicals (prhs[2])) );
     } else {
         loo = false;
     }
@@ -138,11 +138,13 @@ void mexFunction (int nlhs, mxArray* plhs[],
         if ( !mxIsClass (prhs[3], "double") ) {
             mexErrMsgTxt ("The fourth input argument (SEED) must be of type double.");
         }
-        seed = *(mxGetPr(prhs[3]));
+        seed = static_cast<unsigned long int> ( *(mxGetPr(prhs[3])) );
         if ( !mxIsFinite (seed) ) {
             mexErrMsgTxt ("The fourth input argument (SEED) cannot be NaN or Inf.");    
         }
-        srand (seed);
+    } else {
+        random_device rd;
+        seed = static_cast<unsigned int> ( rd () );
     }
     // Fifth input argument (w, weights)
     // Error checking is handled later (see below in 'Declare variables' section) 
@@ -156,12 +158,11 @@ void mexFunction (int nlhs, mxArray* plhs[],
     mwSize dims[2] = {static_cast<mwSize>(n), static_cast<mwSize>(nboot)};
     plhs[0] = mxCreateNumericArray (2, dims, 
                 mxDOUBLE_CLASS, 
-                mxREAL);           // Prepare array for bootstrap sample indices
-    long long int N = n * nboot;   // Total counts of all sample indices
-    long long int k;               // Variable to store random number
-    long long int d;               // Counter for cumulative sum calculations
-    vector<long long int> c;       // Counter for each of the sample indices
-    c.reserve (n);
+                mxREAL);                   // Prepare array for sample indices
+    long long unsigned int N = n * nboot;  // Total counts of all sample indices
+    long long unsigned int k;              // Variable to store random number
+    long long unsigned int d;              // Counter for cumulative sum calculation
+    vector<long long int> c(n, nboot);     // Counter for each of the sample indices
     if ( nrhs > 4 && !mxIsEmpty (prhs[4]) ) {
         // Assign user defined weights (counts)
         if ( !mxIsClass (prhs[4], "double") ) {
@@ -182,16 +183,11 @@ void mexFunction (int nlhs, mxArray* plhs[],
             if ( w[i] < 0 ) {
                 mexErrMsgTxt ("The fifth input argument (WEIGHTS) must contain only positive integers.");
             }
-            c.push_back (w[i]); // Set each element in c to the specified weight    
+            c[i] = w[i]; // Set each element in c to the specified weight    
             s += c[i];
         }
         if ( s != N ) {
             mexErrMsgTxt ("The elements of WEIGHTS must sum to N * NBOOT.");
-        }
-    } else {
-        // Assign weights (counts) for uniform sampling
-        for ( int i = 0; i < n ; i++ ) {   
-            c.push_back (nboot);      // Set each element in c to nboot
         }
     }
     long long int m = 0;  // Counter for LOO sample index r
@@ -201,8 +197,8 @@ void mexFunction (int nlhs, mxArray* plhs[],
     double *ptr = (double *) mxGetData(plhs[0]);
 
     // Initialize pseudo-random number generator (Mersenne Twister 19937)
-    mt19937 rng (rand ());
-    uniform_int_distribution<int> distr (0, n - 1);
+    mt19937_64 rng (seed);
+    uniform_int_distribution<long long unsigned int> distr (0, n - 1);
 
     // Perform balanced sampling
     for ( int b = 0; b < nboot ; b++ ) { 
@@ -226,7 +222,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
                     loo = false;
                 }
             }
-            uniform_int_distribution<int> distk (0, N - m - 1);
+            uniform_int_distribution<long long unsigned int> distk (0, N - m - 1);
             k = distk (rng); 
             d = c[0];
             for ( int j = 0; j < n ; j++ ) { 

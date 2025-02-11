@@ -44,16 +44,8 @@
 // corresponding index is represented in bootsam. Therefore, the sum of WEIGHTS
 // should equal N * NBOOT. 
 //
-// Note that the mex function compiled from this source code is not thread-safe.
-// Below is an example of a line of code one can run in Octave/Matlab before
-// attempting parallel operation of boot.mex in order to ensure that the initial
-// random seeds of each thread are unique:
-//
-// In Octave:
-// >> pararrayfun(nproc, @boot, 1, 1, false, 1:nproc)
-//
-// In Matlab:
-// >> ncpus = feature('numcores'); parfor i = 1:ncpus; boot (1, 1, false, i); end;
+// Compared to previous versions (in package versions <=5.6.0), the boot.mex 
+// function is now thread safe.
 //
 // Requirements: Compilation requires C++11
 //
@@ -78,7 +70,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
     } 
     // First input argument (n or x)
     double *x = (double *) mxGetData (prhs[0]);
-    int n = mxGetNumberOfElements (prhs[0]);    // 32-bit int
+    long unsigned int n = mxGetNumberOfElements (prhs[0]);
     bool isvec;
     if ( n > 1 ) {
         const mwSize *sz = mxGetDimensions (prhs[0]);
@@ -91,19 +83,19 @@ void mexFunction (int nlhs, mxArray* plhs[],
         if ( mxIsComplex (prhs[0]) ) {
             mexErrMsgTxt ("The first input argument (N) cannot contain an imaginary part.");
         }
-        if ( *x != static_cast<int>(*x) ) {
+        if ( *x != static_cast<long unsigned int>(*x) ) {
             mexErrMsgTxt ("The value of the first input argument (N) must be a positive integer.");
         }
         if ( !mxIsFinite (*x) ) {
             mexErrMsgTxt ("The first input argument (N) cannot be NaN or Inf.");
         }
-        n = static_cast<int>(*x);
+        n = static_cast<long unsigned int>(*x);
     }
     if ( !mxIsClass (prhs[0], "double") ) {
         mexErrMsgTxt ("The first input argument (N or X) must be of type double.");
     }
     // Second input argument (nboot)
-    const int nboot = static_cast<const int> ( *(mxGetPr (prhs[1])) );  // 32-bit int
+    const long unsigned int nboot = static_cast<const long unsigned int> ( *(mxGetPr (prhs[1])) );
     if ( mxGetNumberOfElements (prhs[1]) > 1 ) {
         mexErrMsgTxt ("The second input argument (NBOOT) must be scalar.");
     }
@@ -138,7 +130,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
         if ( !mxIsClass (prhs[3], "double") ) {
             mexErrMsgTxt ("The fourth input argument (SEED) must be of type double.");
         }
-        seed = static_cast<unsigned long int> ( *(mxGetPr(prhs[3])) );
+        seed = static_cast<unsigned int> ( *(mxGetPr(prhs[3])) );
         if ( !mxIsFinite (seed) ) {
             mexErrMsgTxt ("The fourth input argument (SEED) cannot be NaN or Inf.");    
         }
@@ -161,7 +153,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
                 mxREAL);                   // Prepare array for sample indices
     long long unsigned int N = n * nboot;  // Total counts of all sample indices
     long long unsigned int k;              // Variable to store random number
-    long long unsigned int d;              // Counter for cumulative sum calculation
+    long long int d;                       // Counter for cumulative sum calculation
     vector<long long int> c(n, nboot);     // Counter for each of the sample indices
     if ( nrhs > 4 && !mxIsEmpty (prhs[4]) ) {
         // Assign user defined weights (counts)

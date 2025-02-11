@@ -103,7 +103,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
         if ( mxIsComplex (prhs[1]) ) {
             mexErrMsgTxt ("The second input argument (DIM) cannot contain an imaginary part");
         }
-        dim = *(mxGetPr (prhs[1]));
+        dim = static_cast<short int> ( *(mxGetPr (prhs[1])) );
     } else {
         dim = 1;
     }

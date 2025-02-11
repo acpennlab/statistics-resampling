@@ -70,6 +70,7 @@
 #include "mex.h"         // for mex functions
 #include <vector>        // for vector function
 #include <cmath>         // for pow function
+#include <limits>        // for numeric limits functions
 #include <algorithm>     // for nth_element function
 using namespace std;
 
@@ -169,7 +170,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
         xvec.erase (remove_if (xvec.begin(), xvec.end(), mxIsNaN), xvec.end());
         l = xvec.size ();
         if (l == 0) {
-            M[k] = NAN;
+            M[k] = numeric_limits<double>::quiet_NaN();
             continue;
         }
 

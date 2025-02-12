@@ -41,7 +41,7 @@ try
           retval = input (sprintf(['Potentially compatible precompiled mex files found. ', ...
                                    'Please select an option:\n', ...
                                    ' 1) Use the precompiled mex files (default).\n', ...
-                                   ' 2) Compile new mex files from source.\n', ...
+                                   ' 2) Compile new mex files from source (recommended).\n', ...
                                    'Answer (1 or 2): ']), 's');
         end
         if isempty(retval)
@@ -88,7 +88,7 @@ else
   disp ('Attempting to compile the source code...');
   if isoctave
     try
-      mkoctfile -std=c++11 --mex --output ./inst/boot ./src/boot.cpp
+      mkoctfile -O3 -march=native --mex --output ./inst/boot ./src/boot.cpp
     catch
       errflag = true;
       err = lasterror();
@@ -96,7 +96,7 @@ else
       warning ('Could not compile boot.%s. Falling back to the (slower) boot.m file.', mexext)
     end
     try
-      mkoctfile -std=c++11 --mex --output ./inst/smoothmedian ./src/smoothmedian.cpp
+      mkoctfile -O3 -march=native --mex --output ./inst/smoothmedian ./src/smoothmedian.cpp
     catch
       errflag = true;
       err = lasterror();
@@ -112,7 +112,7 @@ else
       disp(err.message);
     end
     try
-      mex CXXFLAGS="$CXXFLAGS -std=c++11" -output ./inst/boot ./src/boot.cpp
+      mex CXXFLAGS="$CXXFLAGS -O3 -march=native" -output ./inst/boot ./src/boot.cpp
     catch
       errflag = true;
       err = lasterror ();
@@ -120,7 +120,7 @@ else
       warning ('Could not compile boot.%s. Falling back to the (slower) boot.m file.', mexext)
     end
     try
-      mex CXXFLAGS="$CXXFLAGS -std=c++11" -output ./inst/smoothmedian ./src/smoothmedian.cpp
+      mex CXXFLAGS="$CXXFLAGS -O3 -march=native" -output ./inst/smoothmedian ./src/smoothmedian.cpp
     catch
       errflag = true;
       err = lasterror();

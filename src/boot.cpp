@@ -191,6 +191,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
     // Initialize pseudo-random number generator (Mersenne Twister 19937)
     mt19937_64 rng (seed);
     uniform_int_distribution<long long unsigned int> distr (0, n - 1);
+    uniform_int_distribution<long long unsigned int> distk (0, N - 1);
 
     // Perform balanced sampling
     for ( int b = 0; b < nboot ; b++ ) { 
@@ -214,7 +215,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
                     loo = false;
                 }
             }
-            uniform_int_distribution<long long unsigned int> distk (0, N - m - 1);
+            distk.param (uniform_int_distribution<long long unsigned int>::param_type (0, N - m - 1));
             k = distk (rng); 
             d = c[0];
             for ( int j = 0; j < n ; j++ ) { 

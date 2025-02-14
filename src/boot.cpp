@@ -70,7 +70,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
     } 
     // First input argument (n or x)
     double *x = (double *) mxGetData (prhs[0]);
-    long unsigned int n = mxGetNumberOfElements (prhs[0]);
+    size_t n = mxGetNumberOfElements (prhs[0]);
     bool isvec;
     if ( n > 1 ) {
         const mwSize *sz = mxGetDimensions (prhs[0]);
@@ -83,19 +83,19 @@ void mexFunction (int nlhs, mxArray* plhs[],
         if ( mxIsComplex (prhs[0]) ) {
             mexErrMsgTxt ("The first input argument (N) cannot contain an imaginary part.");
         }
-        if ( *x != static_cast<long unsigned int>(*x) ) {
+        if ( *x != static_cast<size_t>(*x) ) {
             mexErrMsgTxt ("The value of the first input argument (N) must be a positive integer.");
         }
         if ( !mxIsFinite (*x) ) {
             mexErrMsgTxt ("The first input argument (N) cannot be NaN or Inf.");
         }
-        n = static_cast<long unsigned int>(*x);
+        n = static_cast<size_t>(*x);
     }
     if ( !mxIsClass (prhs[0], "double") ) {
         mexErrMsgTxt ("The first input argument (N or X) must be of type double.");
     }
     // Second input argument (nboot)
-    const long unsigned int nboot = static_cast<const long unsigned int> ( *(mxGetPr (prhs[1])) );
+    const size_t nboot = static_cast<size_t> ( *(mxGetPr (prhs[1])) );
     if ( mxGetNumberOfElements (prhs[1]) > 1 ) {
         mexErrMsgTxt ("The second input argument (NBOOT) must be scalar.");
     }
@@ -151,8 +151,8 @@ void mexFunction (int nlhs, mxArray* plhs[],
     plhs[0] = mxCreateNumericArray (2, dims, 
                 mxDOUBLE_CLASS, 
                 mxREAL);                   // Prepare array for sample indices
-    long long unsigned int N = n * nboot;  // Total counts of all sample indices
-    long long unsigned int k;              // Variable to store random number
+    size_t N = n * nboot;  // Total counts of all sample indices
+    size_t k;              // Variable to store random number
     long long int d;                       // Counter for cumulative sum calculation
     vector<long long int> c(n, nboot);     // Counter for each of the sample indices
     if ( nrhs > 4 && !mxIsEmpty (prhs[4]) ) {
@@ -168,7 +168,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
             mexErrMsgTxt ("WEIGHTS must be a vector of length N or be the same length as X.");
         }
         long long int s = 0; 
-        for ( int i = 0; i < n ; i++ )  {
+        for ( size_t i = 0; i < n ; i++ )  {
             if ( !mxIsFinite (w[i]) ) {
                 mexErrMsgTxt ("The fifth input argument (WEIGHTS) cannot contain NaN or Inf.");    
             }
@@ -183,18 +183,18 @@ void mexFunction (int nlhs, mxArray* plhs[],
         }
     }
     long long int m = 0;  // Counter for LOO sample index r
-    int r = -1;           // Sample index for LOO
+    long long int r = -1;           // Sample index for LOO
 
     // Create pointer so that we can access elements of bootsam (i.e. plhs[0])
     double *ptr = (double *) mxGetData(plhs[0]);
 
     // Initialize pseudo-random number generator (Mersenne Twister 19937)
     mt19937_64 rng (seed);
-    uniform_int_distribution<long long unsigned int> distr (0, n - 1);
-    uniform_int_distribution<long long unsigned int> distk (0, N - 1);
+    uniform_int_distribution<size_t> distr (0, n - 1);
+    uniform_int_distribution<size_t> distk (0, N - 1);
 
     // Perform balanced sampling
-    for ( int b = 0; b < nboot ; b++ ) { 
+    for ( size_t b = 0; b < nboot ; b++ ) { 
         if ( loo == true ) {
             // Note that the following division operations are for integers 
             if ( (b / n) == (nboot / n) ) {
@@ -205,7 +205,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
             m = c[r];
             c[r] = 0;
         }
-        for ( int i = 0; i < n ; i++ ) {
+        for ( size_t i = 0; i < n ; i++ ) {
             if ( loo == true ) {
                 // Only leave-one-out if sample index r doesn't account for all
                 // remaining sampling counts
@@ -215,10 +215,10 @@ void mexFunction (int nlhs, mxArray* plhs[],
                     loo = false;
                 }
             }
-            distk.param (uniform_int_distribution<long long unsigned int>::param_type (0, N - m - 1));
+            distk.param (uniform_int_distribution<size_t>::param_type (0, N - m - 1));
             k = distk (rng); 
             d = c[0];
-            for ( int j = 0; j < n ; j++ ) { 
+            for ( size_t j = 0; j < n ; j++ ) { 
                 if ( k < d ) {
                     if (isvec) {
                         ptr[b * n + i] = x[j];

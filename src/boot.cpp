@@ -182,7 +182,7 @@ void mexFunction (int nlhs, mxArray* plhs[],
             mexErrMsgTxt ("The elements of WEIGHTS must sum to N * NBOOT.");
         }
     }
-    long long int m = 0;  // Counter for LOO sample index r
+    long long int m = 0;            // Counter for LOO sample index r
     long long int r = -1;           // Sample index for LOO
 
     // Create pointer so that we can access elements of bootsam (i.e. plhs[0])

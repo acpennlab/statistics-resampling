@@ -150,11 +150,11 @@ void mexFunction (int nlhs, mxArray* plhs[],
     mwSize dims[2] = {static_cast<mwSize>(n), static_cast<mwSize>(nboot)};
     plhs[0] = mxCreateNumericArray (2, dims, 
                 mxDOUBLE_CLASS, 
-                mxREAL);                   // Prepare array for sample indices
-    size_t N = n * nboot;  // Total counts of all sample indices
-    size_t k;              // Variable to store random number
-    long long int d;                       // Counter for cumulative sum calculation
-    vector<long long int> c(n, nboot);     // Counter for each of the sample indices
+                mxREAL);               // Prepare array for sample indices
+    size_t N = n * nboot;              // Total counts of all sample indices
+    size_t k;                          // Variable to store random number
+    long long int d;                   // Counter for cumulative sum calculation
+    vector<long long int> c(n, nboot); // Counter for each of the sample indices
     if ( nrhs > 4 && !mxIsEmpty (prhs[4]) ) {
         // Assign user defined weights (counts)
         if ( !mxIsClass (prhs[4], "double") ) {

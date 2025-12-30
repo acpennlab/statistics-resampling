@@ -846,10 +846,12 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
           end
           TERMS = zeros (K + Nx, K);
           TERMS(1:K,:) = eye (K);
-          for j = 1:K
+          k = K + 1;
+          for j = 1:K-1
             for i = j:K-1
-              TERMS(K+j+i-1,j) = 1;
-              TERMS(K+j+i-1,i+1) = 1;
+              TERMS(k,j) = 1;
+              TERMS(k,i+1) = 1;
+              k = k + 1;
             end
           end
         otherwise

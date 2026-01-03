@@ -434,22 +434,16 @@
 %       in the GROUP variable (when the design is not balanced). Thus, the null
 %       model used for comparison for each model is the model listed directly
 %       above it in AOVSTAT; for the first model, the null model is the
-%       intercept-only model. Note that ANOVA statistics are only returned when
-%       the method used is 'wild' bootstrap AND when no other statistics are
-%       requested (i.e. estimated marginal means or posthoc tests). The
-%       bootstrap is achieved by wild bootstrap of the residuals from the full
-%       model [1,4]. Computations of the statistics in AOVSTAT are compatible
-%       with the 'clustid' and 'blocksz' options.
+%       intercept-only model. The procedure here for bootstrapping ANOVA is
+%       performed with the null hypothesis imposed and requires that the method
+%       used is 'wild' bootstrap AND that no other statistics are requested 
+%       (i.e. estimated marginal means or posthoc tests).
 %
 %       The bootlm function treats all model predictors as fixed effects during
-%       ANOVA tests. While any type of predictor, be it a fixed effect or
-%       nuisance random effect, can be included in the model as a main effect,
-%       any p-values returned are only meaningful for the main effects and
-%       interactions that involve just fixed effects - same goes for the
-%       p-values and confidence intervals for the associated regression
-%       coefficients. Note also that the bootlm function can be used to compute
-%       p-values for ANOVA with nested data structures by cluster bootstrap
-%       resampling (see the 'clustid' option).
+%       ANOVA tests. Note also that the bootlm function can be used to compute
+%       p-values for ANOVA with accounting for dependence structures such as
+%       block or nested designs by wild cluster bootstrap resampling (see the 
+%!      'clustid' or 'blocksz' option).
 %
 %       ** See demo 7 for an example of how to obtain results for ANOVA using
 %          type II sums-of-squares, which test hypotheses that give results
@@ -460,10 +454,10 @@
 %     refined bootstrap estimates of prediction error* and returns statistics
 %     derived from it in a structure containing the following fields:
 %       - 'MODEL': The formula of the linear model(s) in Wilkinson's notation
-%       - 'PE': Bootstrap estimate of prediction error [5]
+%       - 'PE': Bootstrap estimate of prediction error [4]
 %       - 'PRESS': Bootstrap estimate of predicted residual error sum of squares
 %       - 'RSQ_pred': Bootstrap estimate of predicted R-squared
-%       - 'EIC': Extended (Efron) Information Criterion [6]
+%       - 'EIC': Extended (Efron) Information Criterion [5]
 %       - 'RL': Relative likelihood (compared to the intercept-only model)
 %       - 'Wt': EIC expressed as weights
 %
@@ -494,12 +488,9 @@
 %        and references therein. Last accessed 02 Sept 2024.
 %  [3] David Colquhoun (2019) The False Positive Risk: A Proposal Concerning
 %        What to Do About p-Values, The American Statistician, 73:sup1, 192-201
-%  [4] ter Braak (1992) Permutation versus bootstrap significance test in
-%        multiple regression and ANOVA. In Jockel et al (Eds.) Bootstrapping
-%        and Related Techniques. Springer-Verlag, Berlin, pg 79-86
-%  [5] Efron and Tibshirani (1993) An Introduction to the Bootstrap. 
+%  [4] Efron and Tibshirani (1993) An Introduction to the Bootstrap. 
 %        New York, NY: Chapman & Hall. pg 247-252
-%  [6] Konishi & Kitagawa (2008), "Bootstrap Information Criterion" In: 
+%  [5] Konishi & Kitagawa (2008), "Bootstrap Information Criterion" In: 
 %        Information Criteria and Statistical Modeling. Springer Series in
 %        Statistics. Springer, NY.
 %
@@ -1445,7 +1436,7 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
             otherwise
               switch (lower (METHOD))
                 case 'wild'
-                  p_str = 'p-adj';
+                  p_str = ' p-adj';
                 case {'bayes', 'bayesian'}
                   p_str = '     ';
               end
@@ -2041,7 +2032,7 @@ end
 
 %--------------------------------------------------------------------------
 
-% FUNCTION TO PERFORM ANOVA
+% BOOTSTRAP ANOVA FUNCTION
 
 function AOVSTAT = bootanova (Y, X, DF, DFE, DEP, NBOOT, ALPHA, SEED, ...
                               ISOCTAVE, PARALLEL)
@@ -2050,57 +2041,75 @@ function AOVSTAT = bootanova (Y, X, DF, DFE, DEP, NBOOT, ALPHA, SEED, ...
 
   % Compute observed statistics
   Nt = numel (DF) - 1;
-  [jnk, SSE, RESID] = arrayfun (@(j) lmfit (X(:,1:sum (DF(1:j))), Y, ...
+  [B, SSE] = arrayfun (@(j) lmfit (X(:,1:sum (DF(1:j))), Y, ...
                                 ISOCTAVE), (1:Nt + 1)', 'UniformOutput', false);
   SS = max (-diff (cell2mat (SSE)), 0);
   MS = SS ./ DF(2:end);
   MSE = SSE{end} / DFE;
   F = MS / MSE;
 
-  % Obtain the F distribution under the null hypothesis by bootstrap of the
-  % residuals from the full model. See ter Braak (1992) Permutation versus
-  % bootstrap significance test in multiple regression and ANOVA. In Jockel
-  % et al (Eds.) Bootstrapping and Related Techniques. Springer-Verlag, Berlin,
-  % pg 79-86
-  % See also the R function: https://rdrr.io/cran/lmboot/src/R/ANOVA.boot.R
+  % Perform bootstrapping under the null for each term in the model.
   % Use parallel processing if it is available to accelerate bootstrap
   % computation of stepwise regression.
   if (PARALLEL)
     if (ISOCTAVE)
-      [jnk, BOOTSTAT, BOOTSSE] = pararrayfun (inf, @(j) bootwild ( ...
-                                    RESID{end}, X(:, 1:sum (DF(1:j))), ...
-                                    DEP, NBOOT, ALPHA, SEED, [], ISOCTAVE), ...
-                                    (1:Nt + 1)', 'UniformOutput', false);
+      [jnk, jnk, NULLSSE, jnk, BOOTDAT]  = pararrayfun (inf, @(j) bootwild ( ...
+                                    Y, X(:, 1:sum (DF(1:j))), DEP, NBOOT, ...
+                                    ALPHA, SEED, [], ISOCTAVE), (1:Nt)', ...
+                                    'UniformOutput', false);
     else
-      BOOTSTAT = cell (Nt + 1, 1); BOOTSSE = cell (Nt + 1, 1);
-      parfor j = 1:Nt + 1
-        [jnk, BOOTSTAT{j}, BOOTSSE{j}] = bootwild (RESID{end}, ...
+      NULLSSE= cell (Nt, 1); BOOTDAT = cell (Nt, 1);
+      parfor j = 1:Nt
+        [jnk, jnk, NULLSSE{j}, jnk, BOOTDAT{j}]  = bootwild (Y, ...
                                      X(:, 1:sum (DF(1:j))), DEP, NBOOT,...
                                      ALPHA, SEED, [], ISOCTAVE);
       end
     end
   else
-    [jnk, BOOTSTAT, BOOTSSE] = arrayfun (@(j) bootwild ( RESID{end}, ...
+    [jnk, jnk, NULLSSE, jnk, BOOTDAT] = arrayfun (@(j) bootwild ( Y, ...
                                   X(:, 1:sum (DF(1:j))), DEP, NBOOT, ALPHA, ...
-                                  SEED, [], ISOCTAVE), (1:Nt + 1)', ...
+                                  SEED, [], ISOCTAVE), (1:Nt)', ...
                                   'UniformOutput', false);
   end
-  BOOTSSE = cell2mat (BOOTSSE);
-  BOOTSS = max (-diff (BOOTSSE), 0);
-  BOOTMS = bsxfun (@rdivide, BOOTSS, DF(2:end));
-  BOOTMSE = BOOTSSE(end,:) / DFE;
-  BOOTF = bsxfun (@rdivide, BOOTMS, BOOTMSE);
 
-  % Compute p-values
-  res_lim = 1 / (NBOOT + 1);
+  % Refit null models with the alternative (partial) and full models, then 
+  % calculate the bootstrap distribution of F and the p-value for each term
   PVAL = nan (Nt, 1);
+  res_lim = 1 / (NBOOT + 1);
   for j = 1:Nt
-    [x, jnk, P] = bootcdf (BOOTF(j,:), true, 1);
-    if (F(j) < x(1))
-      PVAL(j) = interp1 (x, P, F(j), 'linear', 1);
-    else
-      PVAL(j) = interp1 (x, P, F(j), 'linear', res_lim);
-    end
+
+        % Fit partial (alternative) model to each bootstrap sample generated
+        % from the corresponding null model
+        [jnk, PARTSSE]  = arrayfun (@(b) lmfit (X(:,1:sum (DF(1:j+1))), ...
+                BOOTDAT{j}(:,b), ISOCTAVE), (1:NBOOT)', 'UniformOutput', false);
+
+        % Fit full model to each bootstrap sample generated from the same null
+        % model
+        [jnk, FULLSSE]  = arrayfun (@(b) lmfit (X, BOOTDAT{j}(:,b), ...
+                ISOCTAVE), (1:NBOOT)', 'UniformOutput', false);
+
+        % Convert cell arrays to matrices
+        PARTSSE  = cell2mat (PARTSSE)';
+        FULLSSE  = cell2mat (FULLSSE)';
+
+        % Bootstrap SS, MS, MSE, F
+        BOOTSS  = max (NULLSSE{j} - PARTSSE, 0);
+        BOOTMS  = BOOTSS / DF(j+1);
+        BOOTMSE = FULLSSE / DFE;
+        BOOTF   = bsxfun (@rdivide, BOOTMS, BOOTMSE);
+
+        % Compute bootstrap p-values.
+        %
+        % The code is equivalent to:
+        %   PVAL(j) = sum (BOOTF >= F(j)) / NBOOT
+        % but with interpolation.
+        [x, jnk, P] = bootcdf (BOOTF, true, 1);
+        if (F(j) < x(1))
+          PVAL(j) = interp1 (x, P, F(j), 'linear', 1);
+        else
+          PVAL(j) = interp1 (x, P, F(j), 'linear', res_lim);
+        end
+
   end
 
   % Compute minimum false positive risk
@@ -2232,62 +2241,28 @@ end
 %!demo
 %!
 %! % Two-sample paired test on dependent or matched samples equivalent to a
-%! % paired t-test.
+%! % paired t-test using wild cluster bootstrap resampling.
 %! %
-%! % IMPORTANT: We are only interested here in the statistics for the predictor
-%! % 'treatment', which we have fitted, and interpreted as, a fixed effect. We
-%! % have also treated the predictor 'subject' as a fixed effect, when in most
-%! % instances we would want include it as a random effect in a mixed model.
-%! % However, treating 'subject' as a fixed doesn't affect our results for
-%! % 'treatment' since there is no interaction specified between the two
-%! % predictors in our model.
+%! % The outcome was measured before and after an intervention in different
+%! % subjects labelled with a unique numeric identifier.
 %!
-%! score = [4.5 5.6; 3.7 6.4; 5.3 6.4; 5.4 6.0; 3.9 5.7]';
-%! treatment = {'before' 'after'; 'before' 'after'; 'before' 'after';
-%!              'before' 'after'; 'before' 'after'}';
-%! subject = {'GS' 'GS'; 'JM' 'JM'; 'HM' 'HM'; 'JW' 'JW'; 'PS' 'PS'}';
+%! outcome = [59.40 46.40 46.00 49.00 32.50 45.20 60.30 54.30 45.40 38.90 ...
+%!            64.50 52.40 49.70 48.70 37.40 49.50 59.90 54.10 49.60 48.50];
+%! time    = {'before' 'before' 'before' 'before' 'before' 'before' 'before' ...
+%!            'before' 'before' 'before' 'after' 'after' 'after' 'after' ...
+%!            'after' 'after' 'after' 'after' 'after' 'after'};
+%! id      = [1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10];
 %!
 %! % 95% confidence intervals and p-values for the difference in mean score
-%! % before and after treatment (computed by wild bootstrap)
-%! STATS = bootlm (score, {subject, treatment}, ...
-%!                            'model', 'linear', 'display', 'on', ...
-%!                            'varnames', {'subject','treatment'}, ...
-%!                            'dim', 2, 'posthoc','trt_vs_ctrl');
-%!
-%! % Standardized effect size (Cohen's d) with 95% confidence intervals and 
-%! % total sample size for the difference in mean score before and after
-%! % treatment (computed by wild bootstrap). In this particular case,
-%! % rather than the full model, we have opted for an estimate of the classic
-%! % Cohen's d by refitting the model as a between-subjects design. (It is
-%! % possible to get the standardized effect size from the full model instead,
-%! % but this does change the interpretation of the effect size - ensure that
-%! % your methods are properly documented with reports of standardized effect
-%! % sizes)
-%! STATS = bootlm (score, {treatment}, 'standardize', true, 'model', 'linear', ...
-%!                            'display', 'on', 'varnames', 'treatment',  ...
-%!                            'dim', 1, 'posthoc','trt_vs_ctrl', ...
-%!                            'method', 'wild');
-%!
-%! fprintf ('Cohen''s d [95%% CI] = %.2f [%.2f, %.2f] (N = %u)\n\n', ...
-%!          STATS.estimate, STATS.CI_lower, STATS.CI_upper, STATS.N)
-%!
-%! % Standardized effect size (Cohen's d) with 95% credible intervals and 
-%! % total sample size for the difference in mean score before and after
-%! % treatment (computed by bayesian bootstrap).
-%! STATS = bootlm (score, {treatment}, 'standardize', true, 'model', 'linear', ...
-%!                            'display', 'on', 'varnames', 'treatment',  ...
-%!                            'dim', 1, 'posthoc','trt_vs_ctrl', ...
-%!                            'method', 'bayesian', 'prior', 'auto');
-%!
-%! fprintf ('Cohen''s d [95%% CI] = %.2f [%.2f, %.2f] (N = %u)\n\n', ...
-%!          STATS.estimate, STATS.CI_lower, STATS.CI_upper, STATS.N)
+%! % before and after treatment (computed by wild cluster bootstrap)
+%! STATS = bootlm (outcome, {time}, 'display', 'on', 'varnames', 'time', ...
+%!                 'clustid', id, 'dim', 1, 'posthoc','trt_vs_ctrl');
 %!
 %! % 95% credible intervals for the estimated marginal means of the scores
-%! % before and after treatment (computed by Bayesian bootstrap)
-%! STATS = bootlm (score, {subject, treatment}, ...
+%! % before and after treatment (computed by Bayesian cluster bootstrap)
+%! STATS = bootlm (outcome, {time}, 'varnames', 'time', ...
 %!                            'model', 'linear', 'display', 'on', ...
-%!                            'varnames', {'subject','treatment'}, ...
-%!                            'dim', 2, 'method','bayesian', 'prior', 'auto');
+%!                            'dim', 1, 'method','bayesian', 'prior', 'auto');
 
 %!demo
 %!
@@ -2321,17 +2296,10 @@ end
 
 %!demo
 %!
-%! % One-way repeated measures design. The data is from a study on the number
-%! % of words recalled by 10 subjects for three time condtions, in Loftus &
-%! % Masson (1994) Psychon Bull Rev. 1(4):476-490, Table 2.
-%! %
-%! % IMPORTANT: We are only interested here in the statistics for the predictor
-%! % 'seconds', which we have fitted, and interpreted as, a fixed effect. We
-%! % have also treated the predictor 'subject' as a fixed effect, when in most
-%! % instances we would want include it as a random effect in a mixed model.
-%! % However, treating 'subject' as a fixed doesn't affect our results for
-%! % 'seconds' since there is no interaction specified between the two
-%! % predictors in our model.
+%! % One-way repeated measures design analysed using wild cluster bootstrap. 
+%! % The data is from a study on the number of words recalled by 10 subjects
+%! % for three time condtions, in Loftus & Masson (1994) Psychon Bull Rev. 
+%! % 1(4):476-490, Table 2.
 %!
 %! words = [10 13 13; 6 8 8; 11 14 14; 22 23 25; 16 18 20; ...
 %!          15 17 17; 1 1 4; 12 15 17;  9 12 12;  8 9 12];
@@ -2340,30 +2308,25 @@ end
 %! subject = [ 1  1  1;  2  2  2;  3  3  3;  4  4  4;  5  5  5; ...
 %!             6  6  6;  7  7  7;  8  8  8;  9  9  9; 10 10 10];
 %!
-%! % One-way repeated measures ANOVA statistics
-%! [STATS, BOOTSTAT, AOVSTAT] = bootlm (words, {subject, seconds}, ...
-%!                                      'model', 'linear', 'display', 'off', ...
-%!                                      'varnames', {'subject', 'seconds'});
+%! % One-way ANOVA table after wild cluster bootstrap
+%! [STATS, BOOTSTAT, AOVSTAT] = bootlm (words, {seconds}, 'display', 'on', ...
+%!                                   'varnames', 'seconds', 'clustid', subject);
 %!
-%! fprintf ('ONE-WAY REPEATED MEASURES ANOVA SUMMARY\n')
+%! fprintf ('ANOVA SUMMARY\n')
 %! fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-%!            AOVSTAT.DF(2), AOVSTAT.DFE, AOVSTAT.F(2), ...
-%!            AOVSTAT.PVAL(2), AOVSTAT.MODEL{2});
+%!            AOVSTAT.DF(1), AOVSTAT.DFE, AOVSTAT.F(1), ...
+%!            AOVSTAT.PVAL(1), AOVSTAT.MODEL{1});
 %!
 %! % 95% confidence intervals and p-values for the differences in mean number
-%! % of words recalled for the different times (using wild bootstrap).
-%! STATS = bootlm (words, {subject, seconds}, ...
-%!                            'model', 'linear', 'display', 'on', ...
-%!                            'varnames', {'subject', 'seconds'}, ...
-%!                            'dim', 2, 'posthoc', 'pairwise', ...
-%!                            'alpha', [.025, .975]);
+%! % of words recalled for the different times (using wild cluster bootstrap).
+%! STATS = bootlm (words, {seconds}, 'display', 'on', 'varnames', 'seconds', ...
+%!                            'clustid', subject, 'dim', 1, ...
+%!                            'posthoc', 'pairwise', 'alpha', [.025, .975]);
 %!
 %! % 95% credible intervals for the estimated marginal means of the number of
-%! % words recalled for each time (computed using Bayesian bootstrap).
-%! STATS = bootlm (words, {subject, seconds}, ...
-%!                            'model', 'linear', 'display', 'on', ...
-%!                            'varnames', {'subject', 'seconds'}, ...
-%!                            'dim', 2, 'method', 'bayesian', 'prior', 'auto');
+%! % words recalled for each time (computed using Bayesian cluster bootstrap).
+%! STATS = bootlm (words, {seconds}, 'display', 'on', 'varnames', 'seconds', ...
+%!                            'dim', 1, 'method', 'bayesian', 'prior', 'auto');
 
 %!demo
 %!
@@ -2862,7 +2825,7 @@ end
 %! group = {'A' 'B' 'C'; 'A' 'B' 'C'; 'A' 'B' 'C'; 'A' 'B' 'C'; ...
 %!          'A' 'B' 'C'; 'A' 'B' 'C'; 'A' 'B' 'C'; 'A' 'B' 'C'};
 %!
-%! [STATS, BOOTSTAT, AOVSTAT] = bootlm (data, {group}, 'clustid', clustid, ...
+%! [STATS, BOOTSTAT, AOVSTAT] = bootlm (data, group, 'clustid', clustid, ...
 %!                                      'seed', 1, 'display', 'off');
 %! 
 %! fprintf ('ANOVA SUMMARY\n')
@@ -2870,6 +2833,68 @@ end
 %!            AOVSTAT.DF(1), AOVSTAT.DFE, AOVSTAT.F(1), ...
 %!            AOVSTAT.PVAL(1), AOVSTAT.MODEL{1});
 
+%!demo
+%!
+%! % Variations in design for two-way ANOVA (2x2) with interaction. 
+%!
+%! % Arousal was measured in rodents assigned to four experimental groups in a
+%! % between-subjects design with two factors: group (lesion/control) and
+%! % stimulus (fearful/neutral). In this design, each rodent is allocated to one 
+%! % combination of levels in group and stimulus, and a single measurment of
+%! % arousal is made. The question we are asking here is, does the effect of a
+%! % fear-inducing stimulus on arousal depend on whether or not rodents had a
+%! % lesion?
+%!
+%! group = {'control' 'control' 'control' 'control' 'control' 'control' ...
+%!          'lesion'  'lesion'  'lesion'  'lesion'  'lesion'  'lesion'  ...
+%!          'control' 'control' 'control' 'control' 'control' 'control' ...
+%!          'lesion'  'lesion'  'lesion'  'lesion'  'lesion'  'lesion'};
+%! 
+%! stimulus = {'fearful' 'fearful' 'fearful' 'fearful' 'fearful' 'fearful' ...
+%!             'fearful' 'fearful' 'fearful' 'fearful' 'fearful' 'fearful' ...
+%!             'neutral' 'neutral' 'neutral' 'neutral' 'neutral' 'neutral' ...
+%!             'neutral' 'neutral' 'neutral' 'neutral' 'neutral' 'neutral'};
+%!
+%! arousal = [0.78 0.86 0.65 0.83 0.78 0.81 0.65 0.69 0.61 0.65 0.59 0.64 ...
+%!            0.54 0.6 0.67 0.63 0.56 0.55 0.645 0.565 0.625 0.485 0.655 0.515];
+%!
+%! [stats, bootstat, aovstat] = bootlm (arousal, {group, stimulus}, ...
+%!                                      'seed', 1, 'display', 'off', ...
+%!                                      'model', 'full', ...
+%!                                      'varnames', {'group', 'stimulus'});
+%!
+%! fprintf ('ANOVA SUMMARY for the between-subjects design.\n')
+%! for i = 1:numel(aovstat.F)
+%!   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
+%!              aovstat.DF(i), aovstat.DFE, aovstat.F(i), ...
+%!              aovstat.PVAL(i), aovstat.MODEL{i});
+%! end
+%! 
+%! % Lets consider having a mixed design with rodents allocated into control and
+%! % lesion groups but with two arousal measurements made for each rodent, the
+%! % first to a neutral stimulus and the second to a fearful stimulus. Thus, we
+%! % now need to introduce another variable, a random effect, which defines the
+%! % identity of the rodent of each measurement:
+%!
+%! id = [1 2 3 4 5 6 7 8 9 10 11 12 1 2 3 4 5 6 7 8 9 10 11 12];
+%!
+%! % Instead of fitting a non-linear mixed model, we will fit the same linear
+%! % model but use wild cluster bootstrap resambling to capture the dependence
+%! % structure in the data by providing the id variable to the 'clustid' input
+%! % argument.
+%!
+%! [stats, bootstat, aovstat] = bootlm (arousal, {group, stimulus}, ...
+%!                                      'seed', 1, 'display', 'off', ...
+%!                                      'model', 'full', ...
+%!                                      'clustid', id, ...
+%!                                      'varnames', {'group', 'stimulus'});
+%!
+%! fprintf ('\nANOVA SUMMARY for the mixed between/within subjects design.\n')
+%! for i = 1:numel(aovstat.F)
+%!   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
+%!              aovstat.DF(i), aovstat.DFE, aovstat.F(i), ...
+%!              aovstat.PVAL(i), aovstat.MODEL{i});
+%! end
 
 %!demo
 %!
@@ -2995,32 +3020,43 @@ end
 %! [stats, bootstat, aovstat] = bootlm (score, gender, 'display', 'off', ...
 %!                                'varnames', 'gender', 'seed', 1);
 %!
-%! assert (aovstat.PVAL(1), 0.2435635849960569, 1e-09);
+%! assert (aovstat.PVAL(1), 0.2531417588571749, 1e-09);
 %! assert (stats.pval(2), 0.2434934955512797, 1e-09);
 %! assert (stats.fpr(2), 0.4832095599189747, 1e-09);
 %! % ttest2 (with 'vartype' = 'unequal') gives a p-value of 0.2501;
 
 %!test
 %!
-%! % Two-sample paired test on dependent or matched samples equivalent to a
-%! % paired t-test.
+%! % Two-sample tests (unpaired and paired).
+%! %
+%! % The outcome was measured before and after an intervention in different
+%! % subjects labelled with a unique numeric identifier.
 %!
-%! score = [4.5 5.6; 3.7 6.4; 5.3 6.4; 5.4 6.0; 3.9 5.7]';
-%! treatment = {'before' 'after'; 'before' 'after'; 'before' 'after';
-%!              'before' 'after'; 'before' 'after'}';
-%! subject = {'GS' 'GS'; 'JM' 'JM'; 'HM' 'HM'; 'JW' 'JW'; 'PS' 'PS'}';
+%! outcome = [59.40 46.40 46.00 49.00 32.50 45.20 60.30 54.30 45.40 38.90 ...
+%!            64.50 52.40 49.70 48.70 37.40 49.50 59.90 54.10 49.60 48.50];
+%! time    = {'before' 'before' 'before' 'before' 'before' 'before' 'before' ...
+%!            'before' 'before' 'before' 'after' 'after' 'after' 'after' ...
+%!            'after' 'after' 'after' 'after' 'after' 'after'};
+%! id      = [1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10];
+%! 
+%! % The data analysed (incorrectly) as a between-subjects design with an 
+%! % unpaired test using wild bootstrap.
+%! [stats, bootstat, aovstat] = bootlm (outcome, {time}, 'display', 'off', ...
+%!                                      'varnames', 'time', 'seed', 1);
 %!
-%! [stats, bootstat, aovstat] = bootlm (score, {subject, treatment},...
-%!                            'seed', 1, 'model', 'linear', 'display', ...
-%!                            'off', 'varnames', {'subject', 'treatment'});
+%! assert (aovstat.PVAL, 0.3135453842872482, 1e-09);
+%! assert (stats.CI_lower(2), -3.686622727781613, 1e-09);
+%! assert (stats.CI_upper(2), 11.06662272778161, 1e-09);
 %!
-%! assert (aovstat.PVAL(2), 0.002663575883388276, 1e-09);
-%! assert (stats.pval(1), 0.0007634153906149638, 1e-09);
-%! assert (stats.pval(2), 0.9999999999999976, 1e-09);
-%! assert (stats.pval(3), 0.06635496003291264, 1e-09);
-%! assert (stats.pval(4), 0.4382333666561285, 1e-09);
-%! assert (stats.pval(5), 0.3639361232818445, 1e-09);
-%! assert (stats.pval(6), 0.002663469844077179, 1e-09);
+%! % The data analysed correctly as a within-subjects design with a paired test
+%! % using wild cluster bootstrap.
+%! [stats, bootstat, aovstat] = bootlm (outcome, {time}, 'display', 'off', ...
+%!                                      'varnames', 'time', 'seed', 1, ...
+%!                                      'clustid', id);
+%! 
+%! assert (aovstat.PVAL, 0.01462936561813444, 1e-09);
+%! assert (stats.CI_lower(2), 1.350448328146089, 1e-09);
+%! assert (stats.CI_upper(2), 6.029551671853904, 1e-09);
 
 %!test
 %!
@@ -3036,7 +3072,7 @@ end
 %! [stats, bootstat, aovstat] = bootlm (strength, alloy, 'display', 'off', ...
 %!                                  'varnames', 'alloy', 'seed', 1);
 %!
-%! assert (aovstat.PVAL, 0.000134661710930026, 1e-09);
+%! assert (aovstat.PVAL, 0.0006612573659321272, 1e-09);
 %! assert (stats.CI_lower(2), -10.17909151307657, 1e-09);
 %! assert (stats.CI_upper(2), -3.820908486923432, 1e-09);
 %! assert (stats.CI_lower(3), -7.462255988161777, 1e-09);
@@ -3044,9 +3080,10 @@ end
 
 %!test
 %!
-%! % One-way repeated measures design. The data is from a study on the number
-%! % of words recalled by 10 subjects for three time condtions, in Loftus &
-%! % Masson (1994) Psychon Bull Rev. 1(4):476-490, Table 2.
+%! % One-way repeated measures design analysed by wild cluster bootstrap. The
+%! % data is from a study on the number of words recalled by 10 subjects for
+%! % three time condtions, in Loftus & Masson (1994) Psychon Bull Rev. 
+%! % 1(4):476-490, Table 2.
 %!
 %! words = [10 13 13; 6 8 8; 11 14 14; 22 23 25; 16 18 20; ...
 %!          15 17 17; 1 1 4; 12 15 17;  9 12 12;  8 9 12];
@@ -3055,16 +3092,16 @@ end
 %! subject = [ 1  1  1;  2  2  2;  3  3  3;  4  4  4;  5  5  5; ...
 %!             6  6  6;  7  7  7;  8  8  8;  9  9  9; 10 10 10];
 %!
-%! [stats, bootstat, aovstat] = bootlm (words, {subject, seconds}, ...
-%!                            'seed', 1, 'model', 'linear', 'display', ...
-%!                            'off', 'varnames', {'subject', 'seconds'});
+%! [stats, bootstat, aovstat] = bootlm (words, {seconds}, 'display', 'off', ...
+%!                                      'seed', 1, 'varnames', 'seconds', ...
+%!                                      'clustid', subject);
 %!
-%! assert (aovstat.F(2), 42.5060240963856, 1e-09);
-%! assert (aovstat.PVAL(2), 0.0001, 1e-09);
-%! assert (stats.CI_lower(11), 1.266092224054235, 1e-09);
-%! assert (stats.CI_upper(11), 2.733907775945761, 1e-09);
-%! assert (stats.CI_lower(12), 2.554265809089302, 1e-09);
-%! assert (stats.CI_upper(12), 3.845734190910699, 1e-09);
+%! assert (aovstat.F, 0.7399328859060433, 1e-09);
+%! assert (aovstat.PVAL, 0.002591270965738637, 1e-09);
+%! assert (stats.CI_lower(2), 1.249181883936326, 1e-09);
+%! assert (stats.CI_upper(2), 2.750818116063676, 1e-09);
+%! assert (stats.CI_lower(3), 2.523029362888475, 1e-09);
+%! assert (stats.CI_upper(3), 3.876970637111528, 1e-09);
 
 %!test
 %!
@@ -3114,9 +3151,9 @@ end
 %!                            'model', 'full', 'display', 'off', 'varnames', ...
 %!                            {'gender', 'degree'}, 'seed', 1);
 %!
-%! assert (aovstats.PVAL(1), 0.7523035992551597, 1e-09);   % Normal ANOVA: 0.747 
+%! assert (aovstats.PVAL(1), 0.7549551110867991, 1e-09);   % Normal ANOVA: 0.747 
 %! assert (aovstats.PVAL(2), 0.0001, 1e-09);               % Normal ANOVA: <.001 
-%! assert (aovstats.PVAL(3), 0.5666177238662272, 1e-09);   % Normal ANOVA: 0.524
+%! assert (aovstats.PVAL(3), 0.5682523759540602, 1e-09);   % Normal ANOVA: 0.524
 %! assert (stats.pval(2), 0.2203059381026674, 1e-09);
 %! assert (stats.pval(3), 0.0001, 1e-09);
 %! assert (stats.pval(4), 0.5820694859231031, 1e-09);
@@ -3129,8 +3166,8 @@ end
 %!                            {'degree', 'gender'}, 'seed', 1);
 %!
 %! assert (aovstats.PVAL(1), 0.0001, 1e-09);               % Normal ANOVA: <.001 
-%! assert (aovstats.PVAL(2), 0.004950446391560281, 1e-09); % Normal ANOVA: 0.004
-%! assert (aovstats.PVAL(3), 0.566617723866227, 1e-09);    % Normal ANOVA: 0.524
+%! assert (aovstats.PVAL(2), 0.008925416728357902, 1e-09); % Normal ANOVA: 0.004
+%! assert (aovstats.PVAL(3), 0.5682523759540633, 1e-09);   % Normal ANOVA: 0.524
 %! assert (stats.pval(2), 0.0001, 1e-09);
 %! assert (stats.pval(3), 0.2203059381026671, 1e-09);
 %! assert (stats.pval(4), 0.5820694859231046, 1e-09);
@@ -3190,12 +3227,12 @@ end
 %!                                    'varnames', {'diet', 'drug', 'feedback'});
 %!
 %! assert (aovstat.PVAL(1), 0.0001, 1e-09);
-%! assert (aovstat.PVAL(2), 0.000178547492142441, 1e-09);
-%! assert (aovstat.PVAL(3), 0.0005607720210921853, 1e-09);
-%! assert (aovstat.PVAL(4), 0.06277877943312592, 1e-09);
-%! assert (aovstat.PVAL(5), 0.6484269049223901, 1e-09);
-%! assert (aovstat.PVAL(6), 0.4343155166545599, 1e-09);
-%! assert (aovstat.PVAL(7), 0.0387823588268973, 1e-09);
+%! assert (aovstat.PVAL(2), 0.0002067197629804064, 1e-09);
+%! assert (aovstat.PVAL(3), 0.0009568121264051686, 1e-09);
+%! assert (aovstat.PVAL(4), 0.06209029357187983, 1e-09);
+%! assert (aovstat.PVAL(5), 0.640165047080685, 1e-09);
+%! assert (aovstat.PVAL(6), 0.4361940558376746, 1e-09);
+%! assert (aovstat.PVAL(7), 0.03985480022699249, 1e-09);
 
 %!test
 %!
@@ -3260,8 +3297,8 @@ end
 %!
 %! assert (aovstat.PVAL(1), 0.0001, 1e-09);
 %! assert (aovstat.PVAL(2), 0.0001, 1e-09);
-%! assert (aovstat.PVAL(3), 0.00209853874900942, 1e-09);
-%! assert (aovstat.PVAL(4), 0.0145576845409309, 1e-09);
+%! assert (aovstat.PVAL(3), 0.002223283800751925, 1e-09);
+%! assert (aovstat.PVAL(4), 0.01416608702637612, 1e-09);
 %! assert (stats.pval(6), 0.960547903298728, 1e-09);
 %! assert (stats.pval(7), 0.01418066878652797, 1e-09);
 %! assert (stats.fpr(6), 0.5, 1e-09);
@@ -3419,9 +3456,9 @@ end
 %! [stats, bootstat, aovstat] = bootlm (data, {group}, 'seed', 1, ...
 %!                                     'clustid', clustid, 'display', 'off');
 %! 
-%! assert (aovstat.PVAL, 0.01795384863848686, 1e-09);
+%! assert (aovstat.PVAL, 0.0525052505250525, 1e-09);
 %!
 %! [stats, bootstat, aovstat] = bootlm (data, {group}, 'seed', 1, ...
 %!                                      'display', 'off');
 %! 
-%! assert (aovstat.PVAL, 0.001343607345983057, 1e-09);
+%! assert (aovstat.PVAL, 0.0003126737580895793, 1e-09);

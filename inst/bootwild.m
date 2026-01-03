@@ -96,6 +96,11 @@
 %     N-by-NBOOT matrix containing the N fitted values for each of the NBOOT
 %     bootstrap resamples.
 %
+%
+%     '[STATS, BOOTSTAT, BOOTSSE, BOOTFIT, BOOTDAT] = bootwild (...)  also
+%     returns an N-by-NBOOT matrix containing the N data points for each of
+%     the NBOOT bootstrap resamples.
+%
 %  Bibliography:
 %  [1] Wu (1986). Jackknife, bootstrap and other resampling methods in
 %        regression analysis (with discussions). Ann Stat.. 14: 1261–1350. 
@@ -131,7 +136,7 @@
 %  along with this program.  If not, see http://www.gnu.org/licenses/
 
 
-function [stats, bootstat, bootsse, bootfit] = bootwild (y, X, ...
+function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
                                           dep, nboot, alpha, seed, L, ISOCTAVE)
 
   % Check the number of function arguments
@@ -141,7 +146,7 @@ function [stats, bootstat, bootsse, bootfit] = bootwild (y, X, ...
   if (nargin > 8)
     error ('bootwild: Too many input arguments')
   end
-  if (nargout > 4)
+  if (nargout > 5)
     error ('bootwild: Too many output arguments')
   end
 

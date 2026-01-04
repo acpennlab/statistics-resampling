@@ -15,22 +15,20 @@
 % -- Function File: [STATS, BOOTSTAT, BOOTSSE, BOOTFIT] = bootwild (y, ...)
 %
 %     'bootwild (y)' performs a null hypothesis significance test for the
-%     mean of y being equal to 0. This function implements wild bootstrap-t
-%     resampling of Webb's 6-point distribution of the residuals and computes
-%     confidence intervals and p-values [1-4]. The following statistics are
-%     printed to the standard output:
+%     mean of y being equal to 0. This function performs unrestricted wild
+%     (cluster) bootstrap-t resampling of Webb's 6-point distribution of the
+%     residuals and computes confidence intervals and p-values [1-4]. The
+%     following statistics are printed to the standard output:
 %        - original: the mean of the data vector y
-%        - std_err: heteroscedasticity-consistent standard error(s) (HC1)
+%        - std_err: heteroscedasticity-consistent standard error(s) (HC1 or CR1)
 %        - CI_lower: lower bound(s) of the 95% bootstrap-t confidence interval
 %        - CI_upper: upper bound(s) of the 95% bootstrap-t confidence interval
 %        - tstat: Student's t-statistic
 %        - pval: two-tailed p-value(s) for the parameter(s) being equal to 0
 %        - fpr: minimum false positive risk for the corresponding p-value
 %          By default, the confidence intervals are symmetric bootstrap-t
-%          confidence intervals. The p-values are computed following both of
-%          the guidelines by Hall and Wilson [5]. The minimum false positive
-%          risk (FPR) is computed according to the Sellke-Berger approach as
-%          as described in [6,7].
+%          confidence intervals. The minimum false positive risk (FPR) is
+%          computed according to the Sellke-Berger approach as described [5,6].
 %
 %     'bootwild (y, X)' also specifies the design matrix (X) for least squares
 %     regression of y on X. X should be a column vector or matrix the same
@@ -110,11 +108,9 @@
 %        errors. Can J Econ. https://doi.org/10.1111/caje.12661
 %  [4] Cameron and Miller (2015) A Practitioner’s Guide to Cluster-Robust
 %        Inference. J Hum Resour. 50(2):317-372
-%  [5] Hall and Wilson (1991) Two Guidelines for Bootstrap Hypothesis Testing.
-%        Biometrics, 47(2), 757-762
-%  [6] Colquhoun (2019) The False Positive Risk: A Proposal Concerning What
+%  [5] Colquhoun (2019) The False Positive Risk: A Proposal Concerning What
 %        to Do About p-Values, Am Stat. 73:sup1, 192-201
-%  [7] Sellke, Bayarri and Berger (2001) Calibration of p-values for Testing
+%  [6] Sellke, Bayarri and Berger (2001) Calibration of p-values for Testing
 %        Precise Null Hypotheses. Am Stat. 55(1), 62-71
 %
 %  bootwild (version 2024.05.23)
@@ -311,7 +307,8 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
   sse = S.sse;
   t = original ./ std_err;
 
-  % Wild bootstrap resampling (Webb's 6-point distribution)
+  % Unrestricted wild (cluster) bootstrap resampling
+  % (Webb's 6-point distribution)
   s = sign (rand (G, nboot) - 0.5) .* ...
       sqrt (0.5 * (fix (rand (G, nboot) * 3) + 1));
   if (~ isempty (IC))
@@ -331,8 +328,7 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
   bootfit = [bootout.fit];
 
   % Studentize the bootstrap statistics and compute two-tailed confidence
-  % intervals and p-values following both guidelines described in Hall and
-  % Wilson (1991) Biometrics, 47(2), 757-762
+  % intervals and p-values
   T = bsxfun (@minus, bootstat, original) ./ bootse;
   unstable = any (or (lt (bootse, eps), isnan (T)), 2);
   ci = nan (p, 2);

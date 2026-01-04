@@ -647,9 +647,12 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
                      ' continuous cannot exceed the number of', ...
                      ' predictors in GROUP'))
     end
-    if (any ((CONTINUOUS > K) | any (CONTINUOUS <= 0)))
-      error (cat (2, 'bootlm: one or more indices provided in the value', ...
-                     ' for the continuous parameter are out of range'))
+    if ~isempty(CONTINUOUS)
+      if any(CONTINUOUS > K | CONTINUOUS <= 0)
+        error (cat (2, 'bootlm: the number of predictors assigned as', ...
+                       ' continuous cannot exceed the number of', ...
+                       ' predictors in GROUP'))
+      end
     end
     cont_vec = false (1, K);
     cont_vec(CONTINUOUS) = true;
@@ -929,10 +932,10 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
         if cont_vec(j)
           if iscell (GROUP(:,j))
             tmp = cell2mat (GROUP(:,j));
-            GROUP(:,CONTINUOUS) = num2cell ((tmp - mean (tmp)) / std (tmp));
+            GROUP(:,j) = num2cell ((tmp - mean (tmp)) / std (tmp));
           else
             tmp = GROUP(:,j);
-            GROUP(:,CONTINUOUS) = (tmp - mean (tmp)) / std (tmp);
+            GROUP(:,j) = (tmp - mean (tmp)) / std (tmp);
           end
         end
       end
@@ -2073,7 +2076,7 @@ function AOVSTAT = bootanova (Y, X, DF, DFE, DEP, NBOOT, ALPHA, SEED, ...
   end
 
   % Refit null models with the alternative (partial) and full models, then 
-  % calculate the bootstrap distribution of F and the p-value for each term
+  % calculate the bootstrap distribution of F, and the p-value for each term.
   PVAL = nan (Nt, 1);
   res_lim = 1 / (NBOOT + 1);
   for j = 1:Nt
@@ -2456,13 +2459,13 @@ end
 %!            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
 %! end
 %!
-%! % Since the interaction is not significant (F(1,18) = 0.42, p = 0.567), we
+%! % Since the interaction is not significant (F(1,18) = 0.42, p = 0.568), we
 %! % draw our attention to the main effects. We see that employees in this
 %! % have significantly different starting salaries depending or not on whether
-%! % they have a degree (F(1,18) = 87.20, p < 0.001). We can also see that once
+%! % they have a degree (F(1,18) = 87.20, p < 0.0001). We can also see that once
 %! % we factor in any differences in salary attributed to having a degree,
 %! % there is a significant difference in the salaries of men and women at
-%! % this company (F(1,18) = 10.97, p = 0.005). 
+%! % this company (F(1,18) = 10.97, p = 0.00893). 
 %!
 %! % ANOVA (including the main effect of degree averaged over all levels of
 %! % gender). In this order, the variability in salary only attributed to being
@@ -2485,7 +2488,7 @@ end
 %! end
 %!
 %! % We can now see in the output that there is no significant difference in
-%! % salary between men and women in this company! (F(1,18) = 0.11, p = 0.752).
+%! % salary between men and women in this company! (F(1,18) = 0.11, p = 0.755).
 %! % Why the discrepancy? There still seems to be a significant effect of
 %! % having a degree on the salary of people in this company (F(1,18) = 98.06, 
 %! % p < 0.001). Lets look at the regression coefficients to see what this

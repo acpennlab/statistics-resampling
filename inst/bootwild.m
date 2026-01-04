@@ -15,8 +15,8 @@
 % -- Function File: [STATS, BOOTSTAT, BOOTSSE, BOOTFIT] = bootwild (y, ...)
 %
 %     'bootwild (y)' performs a null hypothesis significance test for the
-%     mean of y being equal to 0. This function performs unrestricted wild
-%     (cluster) bootstrap-t resampling of Webb's 6-point distribution of the
+%     mean of y being equal to 0. This function performs wild (cluster)
+%     unrestricted bootstrap-t resampling of Webb's 6-point distribution of the
 %     residuals and computes confidence intervals and p-values [1-4]. The
 %     following statistics are printed to the standard output:
 %        - original: the mean of the data vector y
@@ -307,7 +307,7 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
   sse = S.sse;
   t = original ./ std_err;
 
-  % Unrestricted wild (cluster) bootstrap resampling
+  % Wild (cluster) unrestricted bootstrap resampling
   % (Webb's 6-point distribution)
   s = sign (rand (G, nboot) - 0.5) .* ...
       sqrt (0.5 * (fix (rand (G, nboot) * 3) + 1));
@@ -471,7 +471,7 @@ function print_output (stats, nboot, alpha, p, L, method)
     else
       fprintf (' Function: pinv (X) * y\n');
     end
-    fprintf (' Resampling method: Wild %sbootstrap-t\n', method)
+    fprintf (' Resampling method: Wild %sunrestricted bootstrap-t\n', method)
     fprintf (' Number of resamples: %u \n', nboot)
     fprintf (' Standard error calculations:');
     if (isempty (method))

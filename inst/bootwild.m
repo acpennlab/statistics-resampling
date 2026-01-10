@@ -94,7 +94,6 @@
 %     N-by-NBOOT matrix containing the N fitted values for each of the NBOOT
 %     bootstrap resamples.
 %
-%
 %     '[STATS, BOOTSTAT, BOOTSSE, BOOTFIT, BOOTDAT] = bootwild (...)  also
 %     returns an N-by-NBOOT matrix containing the N data points for each of
 %     the NBOOT bootstrap resamples.

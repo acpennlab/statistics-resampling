@@ -70,6 +70,13 @@
 %        The default value of ALPHA is the scalar: 0.05, for symmetric 95% 
 %        bootstrap-t confidence interval(s).
 %
+%     'bootwild (y, X, ..., NBOOT, {ALPHA})' as above, except that p-values
+%     become independent of the confidence intervals since they are adjusted
+%     to control the family-wise error rate (FWER) across multiple comparisons
+%     using the step-down max |T| procedure [7]. Confidence intervals remain
+%     based on the individual bootstrap-t distribution even when FWER control
+%     is requested. By default, no multiple comparison procedure is used.
+%
 %     'bootwild (y, X, ..., NBOOT, ALPHA, SEED)' initialises the Mersenne
 %     Twister random number generator using an integer SEED value so that
 %     'bootwild' results are reproducible.
@@ -111,6 +118,8 @@
 %        to Do About p-Values, Am Stat. 73:sup1, 192-201
 %  [6] Sellke, Bayarri and Berger (2001) Calibration of p-values for Testing
 %        Precise Null Hypotheses. Am Stat. 55(1), 62-71
+%  [7] Westfall, P. H., & Young, S. S. (1993). Resampling-Based Multiple 
+%        Testing: Examples and Methods for p-Value Adjustment. Wiley.
 %
 %  bootwild (version 2024.05.23)
 %  Author: Andrew Charles Penn
@@ -262,7 +271,14 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
   if ( (nargin < 5) || isempty (alpha) )
     alpha = 0.05;
     nalpha = 1;
+    FWER = false;
   else
+    if iscell(alpha)
+      FWER = true;
+      alpha = alpha{1};
+    else
+      FWER = false;
+    end
     nalpha = numel (alpha);
     if (~ isa (alpha, 'numeric') || (nalpha > 2))
       error (cat (2, 'bootwild: ALPHA must be a scalar (two-tailed', ...
@@ -329,20 +345,46 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
   % Studentize the bootstrap statistics and compute two-tailed confidence
   % intervals and p-values
   T = bsxfun (@minus, bootstat, original) ./ bootse;
+  if FWER
+    % Control the family-wise error rate using the step-down maxT procedure
+    % Order the absolute values of the original t-values from highest to lowest
+    [ts, idx] = sort (abs (t), 'descend');
+    % Sort the rows of T
+    Ts = abs (T(idx, :));
+    %  For each step j, compute the distribution of maxT over the remaining
+    % hypotheses
+    maxT = cell2mat (arrayfun (@(j) max (Ts(j:end, :), [], 1), (1:p)', ...
+                     'UniformOutput', false));
+    % Initialise vector of sorted p-values
+    ps = nan (p, 1);
+  end
   unstable = any (or (lt (bootse, eps), isnan (T)), 2);
   ci = nan (p, 2);
   pval = nan (p, 1);
   if (any (~ isnan (alpha)))
     for j = 1:p
-      [x, F, P] = bootcdf (abs (T(j,:)), true, 1);
-      if (abs (t(j)) < x(1))
-        pval(j) = interp1 (x, P, abs (t(j)), 'linear', 1);
+      if FWER
+        [x, F, P] = bootcdf (maxT(j,:), true, 1);
+        if (ts(j) < x(1))
+          ps(j) = interp1 (x, P, ts(j), 'linear', 1);
+        else
+          ps(j) = interp1 (x, P, ts(j), 'linear', res_lim);
+        end
       else
-        pval(j) = interp1 (x, P, abs (t(j)), 'linear', res_lim);
+        [x, F, P] = bootcdf (abs (T(j,:)), true, 1);
+        if (abs (t(j)) < x(1))
+          pval(j) = interp1 (x, P, abs (t(j)), 'linear', 1);
+        else
+          pval(j) = interp1 (x, P, abs (t(j)), 'linear', res_lim);
+        end
       end
       if ( (~ isnan (std_err(j))) && (~ unstable(j)) )
         switch nalpha
           case 1
+            if FWER
+              % Need to recompute CDF for original T(j,:) for CI calculation
+              [x, F, P] = bootcdf (abs (T(j,:)), true, 1);
+            end
             ci(j, 1) = original(j) - std_err(j) * ...
                                     interp1 (F, x, 1 - alpha, 'linear', max (x));
             ci(j, 2) = original(j) + std_err(j) * ...
@@ -356,6 +398,13 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
         end
       end
     end
+  end
+  if FWER
+    % Enforce monotonicity of the sorted p-values
+    ps(2:end) = cell2mat (arrayfun (@(i) max (ps(i), ps(i-1)), (2:p)', ...
+                          'UniformOutput', false));
+    % Reorder the adjusted p-values to match the order of the original t-values
+    pval(idx) = ps;
   end
 
   % Compute minimum false positive risk
@@ -374,7 +423,7 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
 
   % Print output if no output arguments are requested
   if (nargout == 0) 
-    print_output (stats, nboot, alpha, p, L, method);
+    print_output (stats, nboot, alpha, p, L, method, FWER);
   end
 
 end
@@ -458,7 +507,7 @@ end
 
 % FUNCTION TO PRINT OUTPUT
 
-function print_output (stats, nboot, alpha, p, L, method)
+function print_output (stats, nboot, alpha, p, L, method, FWER)
 
     fprintf (cat (2, '\nSummary of wild bootstrap null hypothesis', ...
                      ' significance tests for linear models\n', ...
@@ -495,8 +544,13 @@ function print_output (stats, nboot, alpha, p, L, method)
     end
     fprintf (' Null value (H0) used for hypothesis testing (p-values): 0 \n')
     fprintf ('\nTest Statistics: \n');
-    fprintf (cat (2, ' original     std_err      CI_lower     CI_upper', ...
-                     '     t-stat      p-val     FPR\n'));
+    if FWER
+      fprintf (cat (2, ' original     std_err      CI_lower     CI_upper', ...
+                       '     t-stat      p-adj     FPR\n'));
+    else
+      fprintf (cat (2, ' original     std_err      CI_lower     CI_upper', ...
+                       '     t-stat      p-val     FPR\n'));
+    end
     for j = 1:p
       fprintf (cat (2, ' %#-+10.4g   %#-10.4g   %#-+10.4g', ...
                        '   %#-+10.4g   %#-+9.3g'), ...

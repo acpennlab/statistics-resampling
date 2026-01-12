@@ -345,7 +345,7 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
   % Studentize the bootstrap statistics and compute two-tailed confidence
   % intervals and p-values
   T = bsxfun (@minus, bootstat, original) ./ bootse;
-  if FWER
+  if (FWER)
     % Control the family-wise error rate using the step-down maxT procedure
     % Order the absolute values of the original t-values from highest to lowest
     [ts, idx] = sort (abs (t), 'descend');
@@ -363,7 +363,7 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
   pval = nan (p, 1);
   if (any (~ isnan (alpha)))
     for j = 1:p
-      if FWER
+      if (FWER)
         [x, F, P] = bootcdf (maxT(j,:), true, 1);
         if (ts(j) < x(1))
           ps(j) = interp1 (x, P, ts(j), 'linear', 1);
@@ -381,7 +381,7 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
       if ( (~ isnan (std_err(j))) && (~ unstable(j)) )
         switch nalpha
           case 1
-            if FWER
+            if (FWER)
               % Need to recompute CDF for original T(j,:) for CI calculation
               [x, F, P] = bootcdf (abs (T(j,:)), true, 1);
             end
@@ -399,7 +399,7 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
       end
     end
   end
-  if FWER
+  if (FWER)
     % Enforce monotonicity of the sorted p-values
     ps(2:end) = cell2mat (arrayfun (@(i) max (ps(i), ps(i-1)), (2:p)', ...
                           'UniformOutput', false));
@@ -544,7 +544,7 @@ function print_output (stats, nboot, alpha, p, L, method, FWER)
     end
     fprintf (' Null value (H0) used for hypothesis testing (p-values): 0 \n')
     fprintf ('\nTest Statistics: \n');
-    if FWER
+    if (FWER)
       fprintf (cat (2, ' original     std_err      CI_lower     CI_upper', ...
                        '     t-stat      p-adj     FPR\n'));
     else

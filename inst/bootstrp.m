@@ -95,6 +95,15 @@
 %     If BOOTSTAT is not numeric, STATS only returns the 'original' field. If
 %     BOOTFUN is empty, then the value of the 'original' field is also empty.
 %
+%     '[BOOTSTAT, BOOTSAM, STATS, BOOTOOB] = bootstrp (...)' also returns the
+%     out-of-bag samples. If match is true, BOOTOOB is a 1-by-NBOOT cell array
+%     where each cell contains a vector of indices corresponding to the out-of-
+%     bag (OOB) sample observations for the corresponding bootstrap sample. If
+%     match is false, BOOTOOB is a nested 1-by-N cell array for the respective
+%     data argument D1 to DN, each containing a 1-by-NBOOT cell array of their
+%     OOB samples. Note that using bootknife resampling (by setting LOO to true)
+%     guarantees that all OOB samples have at least one obervation.
+%
 %  Bibliography:
 %  [1] Efron, and Tibshirani (1993) An Introduction to the
 %        Bootstrap. New York, NY: Chapman & Hall
@@ -125,15 +134,15 @@
 %  along with this program.  If not, see http://www.gnu.org/licenses/
 
 
-function [bootstat, bootsam, stats] = bootstrp (argin1, argin2, varargin)
+function [bootstat, bootsam, stats, bootoob] = bootstrp (argin1, argin2, varargin)
 
   % Evaluate the number of function arguments
   if (nargin < 2)
     error (cat (2, 'bootstrp usage: ''bootstrp (nboot, {bootfun, data},', ...
                    ' varargin)''; atleast 2 input arguments required'))
   end
-  if (nargout > 3)
-    error (cat (2, 'bootstrp: Maximum of 3 output arguments can be requested'))
+  if (nargout > 4)
+    error (cat (2, 'bootstrp: Maximum of 4 output arguments can be requested'))
   end
 
   % Store subfunctions in a stucture to make them available for parallel processes
@@ -408,8 +417,9 @@ function [bootstat, bootsam, stats] = bootstrp (argin1, argin2, varargin)
     bootsam = repmat (mat2cell (boot (n{1}, nboot, loo, seed, w{1}), ...
                                 n{1}, nboot), nvar, 1);
   else
-    bootsam = cellfun (@(n, w) boot (n, nboot, loo, seed, w), ... 
-                         n', w', 'UniformOutput', false);
+    seed =  arrayfun(@(v) seed + v - 1, 1:nvar, 'UniformOutput', false);
+    bootsam = cellfun (@(n, w, seed) boot (n, nboot, loo, seed, w), ... 
+                         n', w', seed', 'UniformOutput', false);
   end
   if (isempty (bootfun))
     bootstat = zeros (nboot, 0);
@@ -469,6 +479,20 @@ function [bootstat, bootsam, stats] = bootstrp (argin1, argin2, varargin)
     else
       % Leave stats structure empty
       stats.original = [];
+    end
+  end
+
+  % Compute and return the out-of-bag bootstrap samples
+  if (nargout > 3)
+    if (match)
+      bootoob = arrayfun (@(b) setdiff ((1:n{1})', bootsam(:,b)), 1:nboot,
+                         'UniformOutput', false);
+    else
+      bootoob = cell (1, nvar);
+      for v = 1:nvar
+        bootoob{v} = arrayfun (@(b) setdiff ((1:n{v})', bootsam{v}(:,b)), 1:nboot,
+                               'UniformOutput', false);
+      end
     end
   end
 

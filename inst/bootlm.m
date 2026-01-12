@@ -35,8 +35,8 @@
 %          - p-val: two-tailed p-value(s) for the parameter(s) being equal to 0
 %        By default, confidence intervals and Null Hypothesis Significance Tests
 %     (NHSTs) for the regression coefficients (H0 = 0) are calculated by wild
-%     bootstrap-t and are robust when normality and homoscedasticity cannot be
-%     assumed [1].
+%     (cluster) unrestricted bootstrap-t and are robust when normality and
+%     homoscedasticity cannot be assumed [1].
 %
 %        Usage of this function is very similar to that of 'anovan'. Data (Y)
 %     is a numeric variable, and the predictor(s) are specified in GROUP (a.k.a.
@@ -367,9 +367,9 @@
 %               corresponds to the row-wise differences: column 1 - column 2.
 %               See demo 6 for an example.
 %
-%          All of the posthoc comparisons use the Holm-Bonferroni procedure
+%          All of the posthoc comparisons use the step-down max |T| procedure
 %          to control the type I error rate, but the confidence intervals are
-%          not adjusted for multiple comparisons. If the 'standardize' input
+%          not adjusted for multiple comparisons [3]. If the 'standardize' input
 %          argument set to 'on', the estimates, confidence intervals and
 %          bootstrap statistics for the comparisons are converted to estimates
 %          of Cohen's d standardized effect sizes. Cohen's d here is calculated
@@ -391,7 +391,7 @@
 %       - 'CI_lower': The lower bound(s) of the confidence/credible interval(s)
 %       - 'CI_upper': The upper bound(s) of the confidence/credible interval(s)
 %       - 'pval': The p-value(s) for the hypothesis that the estimate(s) == 0
-%       - 'fpr': The minimum false positive risk (FPR) for each p-value [3].
+%       - 'fpr': The minimum false positive risk (FPR) for each p-value [4].
 %       - 'N': The number of independent sampling units used to compute CIs
 %       - 'prior': The prior used for Bayesian bootstrap. This will return a
 %                  scalar for regression coefficients, or a P x 1 or P x 2
@@ -454,10 +454,10 @@
 %     refined bootstrap estimates of prediction error* and returns statistics
 %     derived from it in a structure containing the following fields:
 %       - 'MODEL': The formula of the linear model(s) in Wilkinson's notation
-%       - 'PE': Bootstrap estimate of prediction error [4]
+%       - 'PE': Bootstrap estimate of prediction error [5]
 %       - 'PRESS': Bootstrap estimate of predicted residual error sum of squares
 %       - 'RSQ_pred': Bootstrap estimate of predicted R-squared
-%       - 'EIC': Extended (Efron) Information Criterion [5]
+%       - 'EIC': Extended (Efron) Information Criterion [6]
 %       - 'RL': Relative likelihood (compared to the intercept-only model)
 %       - 'Wt': EIC expressed as weights
 %
@@ -486,11 +486,13 @@
 %  [2] Penn, A.C. statistics-resampling manual: `bootbayes` function reference.
 %        https://gnu-octave.github.io/statistics-resampling/function/bootbayes.html
 %        and references therein. Last accessed 02 Sept 2024.
-%  [3] David Colquhoun (2019) The False Positive Risk: A Proposal Concerning
+%  [3] Westfall, P. H., & Young, S. S. (1993). Resampling-Based Multiple 
+%        Testing: Examples and Methods for p-Value Adjustment. Wiley.
+%  [4] David Colquhoun (2019) The False Positive Risk: A Proposal Concerning
 %        What to Do About p-Values, The American Statistician, 73:sup1, 192-201
-%  [4] Efron and Tibshirani (1993) An Introduction to the Bootstrap. 
+%  [5] Efron and Tibshirani (1993) An Introduction to the Bootstrap. 
 %        New York, NY: Chapman & Hall. pg 247-252
-%  [5] Konishi & Kitagawa (2008), "Bootstrap Information Criterion" In: 
+%  [6] Konishi & Kitagawa (2008), "Bootstrap Information Criterion" In: 
 %        Information Criteria and Statistical Modeling. Springer Series in
 %        Statistics. Springer, NY.
 %
@@ -1218,12 +1220,12 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
           switch (lower (METHOD))
             case 'wild'
               % Modifying the hypothesis matrix (L) to perform the desired tests
+              % The call to bootwild triggers step-down maxT p-value adjustment
+              % to control the family wise error rate across multiple comparisons.
               L = make_test_matrix (L, pairs);
               Np = size (pairs, 1);    % Update the number of parameters
-              [STATS, BOOTSTAT] = bootwild (Y, X, DEP, NBOOT, ALPHA, SEED, ...
+              [STATS, BOOTSTAT] = bootwild (Y, X, DEP, NBOOT, {ALPHA}, SEED, ...
                                             L, ISOCTAVE);
-              % Control the type 1 error rate across multiple comparisons
-              STATS.pval = holm (STATS.pval);
               % Update minimum false positive risk after multiple comparisons
               STATS.fpr = pval2fpr (STATS.pval);
               % Create empty fields in STATS structure
@@ -1903,34 +1905,6 @@ function L = make_test_matrix (L_EMM, pairs)
     L_COMP(j, pairs(j,:)) = [1,-1];
   end
   L = (L_COMP * L_EMM')';
-
-end
-
-%--------------------------------------------------------------------------
-
-% FUNCTION TO CONTROL TYPE 1 ERROR ACROSS MULTIPLE POSTHOC COMPARISONS
-
-function padj = holm (p)
-
-  % Holm-Bonferroni procedure
-
-  % Order raw p-values
-  [ps, idx] = sort (p, 'ascend');
-  k = numel (ps);
-
-  % Implement Holm's step-down Bonferroni procedure
-  padj = nan (k,1);
-  padj(1) = k * ps(1);
-  for j = 2:k
-    padj(j) = max (padj(j - 1), (k - j + 1) * ps(j));
-  end
-
-  % Reorder the adjusted p-values to match the order of the original p-values
-  [jnk, original_order] = sort (idx, 'ascend');
-  padj = padj(original_order);
-
-  % Truncate adjusted p-values to 1.0
-  padj(padj>1) = 1;
 
 end
 
@@ -3393,11 +3367,11 @@ end
 %! stats = bootlm (y, g, 'display', false, 'dim', 1, 'posthoc', 'pairwise', ...
 %!                       'seed', 1);
 %!
-%! assert (stats.pval(1), 0.02381212481394462, 1e-09);
-%! assert (stats.pval(2), 0.009547350172112052, 1e-09);
-%! assert (stats.pval(3), 0.1541408530918242, 1e-09);
-%! assert (stats.fpr(1), 0.1947984337990365, 1e-09);
-%! assert (stats.fpr(2), 0.1077143325366211, 1e-09);
+%! assert (stats.pval(1), 0.01533994678815711, 1e-09);
+%! assert (stats.pval(2), 0.01516211050774955, 1e-09);
+%! assert (stats.pval(3), 0.154140853091824, 1e-09);
+%! assert (stats.fpr(1), 0.1483462403512968, 1e-09);
+%! assert (stats.fpr(2), 0.1472287013654584, 1e-09);
 %! assert (stats.fpr(3), 0.4392984660114188, 1e-09);
 
 %!test

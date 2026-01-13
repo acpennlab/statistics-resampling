@@ -23,7 +23,7 @@
 % -- Function File: [STATS, BOOTSTAT] = bootlm (...)
 % -- Function File: [STATS, BOOTSTAT, AOVSTAT] = bootlm (...)
 % -- Function File: [STATS, BOOTSTAT, AOVSTAT, PRED_ERR] = bootlm (...)
-% -- Function File: [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, X] = bootlm (...)
+% -- Function File: [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (...)
 %
 %        Fits a linear model with categorical and/or continuous predictors (i.e.
 %     independent variables) on a continuous outcome (i.e. dependent variable)

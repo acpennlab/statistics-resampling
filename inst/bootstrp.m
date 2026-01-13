@@ -12,6 +12,7 @@
 % -- Function File: BOOTSTAT = bootstrp (..., 'Seed', SEED)
 % -- Function File: [BOOTSTAT, BOOTSAM] = bootstrp (...)
 % -- Function File: [BOOTSTAT, BOOTSAM, STATS] = bootstrp (...)
+% -- Function File: [BOOTSTAT, BOOTSAM, STATS, BOOTOOB] = bootstrp (...)
 %
 %     'BOOTSTAT = bootstrp (NBOOT, BOOTFUN, D)' draws NBOOT bootstrap resamples
 %     with replacement from the rows of the data D and returns the statistic

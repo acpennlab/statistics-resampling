@@ -4,11 +4,12 @@
 %
 % -- Function File: BOOTSTAT = bootstrp (NBOOT, BOOTFUN, D)
 % -- Function File: BOOTSTAT = bootstrp (NBOOT, BOOTFUN, D1, ..., DN)
-% -- Function File: BOOTSTAT = bootstrp (..., D1, ..., DN, 'match', MATCH)
+% -- Function File: BOOTSTAT = bootstrp (..., D1, ..., DN, 'Match', MATCH)
 % -- Function File: BOOTSTAT = bootstrp (..., 'Options', PAROPT)
 % -- Function File: BOOTSTAT = bootstrp (..., 'Weights', WEIGHTS)
-% -- Function File: BOOTSTAT = bootstrp (..., 'loo', LOO)
-% -- Function File: BOOTSTAT = bootstrp (..., 'seed', SEED)
+% -- Function File: BOOTSTAT = bootstrp (..., 'Strata', STRATA)
+% -- Function File: BOOTSTAT = bootstrp (..., 'LOO', LOO)
+% -- Function File: BOOTSTAT = bootstrp (..., 'Seed', SEED)
 % -- Function File: [BOOTSTAT, BOOTSAM] = bootstrp (...)
 % -- Function File: [BOOTSTAT, BOOTSAM, STATS] = bootstrp (...)
 %
@@ -30,7 +31,7 @@
 %     (column vectors, matrices or cell arrays,) which are used as input for
 %     BOOTFUN.
 %
-%     'BOOTSTAT = bootstrp (..., D1, ..., DN, 'match', MATCH)' controls the
+%     'BOOTSTAT = bootstrp (..., D1, ..., DN, 'Match', MATCH)' controls the
 %     resampling strategy when multiple data arguments are provided. When MATCH
 %     is true, row indices of D1 to DN are the same (i.e. matched) for each
 %     resample. This is the default strategy when D1 to DN all have the same
@@ -54,16 +55,23 @@
 %                         has already been started. 
 %        o 'nproc':       nproc sets the number of parallel processes (optional)
 %
-%     'BOOTSTAT = bootstrp (..., D, 'weights', WEIGHTS)' sets the resampling
+%     'BOOTSTAT = bootstrp (..., D, 'Weights', WEIGHTS)' sets the resampling
 %     weights. WEIGHTS must be a column vector with the same number of rows as
 %     the data, D. If WEIGHTS is empty or not provided, the default is a vector
 %     of length N with uniform weighting 1/N. 
 %
-%     'BOOTSTAT = bootstrp (..., D1, ... DN, 'weights', WEIGHTS)' as above if
+%     'BOOTSTAT = bootstrp (..., D1, ... DN, 'Weights', WEIGHTS)' as above if
 %     MATCH is true. If MATCH is false, a 1-by-N cell array of column vectors
 %     can be provided to specify independent resampling weights for D1 to DN.
 %
-%     'BOOTSTAT = bootstrp (..., 'loo', LOO)' sets the simulation method. If 
+%     'BOOTSTAT = bootstrp (..., D1, ... DN, 'Strata', STRATA)' performs 
+%     balanced stratified resampling according to the group identifiers in
+%     STRATA, which must be a vector of length (N) equal to the number of rows 
+%     in D. This option cannot be used in conjunction with 'Weights', and it
+%     requires 'Match' = true, as such it applies the same stratum-wise indices
+%     to all matched data arguments.
+%
+%     'BOOTSTAT = bootstrp (..., 'LOO', LOO)' sets the simulation method. If 
 %     LOO is false, the resampling method used is balanced bootstrap resampling.
 %     If LOO is true, the resampling method used is balanced bootknife
 %     resampling [4]. The latter involves creating leave-one-out (jackknife)
@@ -72,7 +80,7 @@
 %     correction into the resampling procedure. LOO must be a scalar logical
 %     value. The default value of LOO is false.
 %
-%     'BOOTSTAT = bootstrp (..., 'seed', SEED)' initialises the Mersenne Twister
+%     'BOOTSTAT = bootstrp (..., 'Seed', SEED)' initialises the Mersenne Twister
 %     random number generator using an integer SEED value so that bootci results
 %     are reproducible.
 %
@@ -164,6 +172,7 @@ function [bootstat, bootsam, stats, bootoob] = bootstrp (argin1, argin2, varargi
   w = [];
   loo = false;
   match = true;
+  strata = [];
   seed = [];
 
   % Assign input arguments to function variables
@@ -182,6 +191,8 @@ function [bootstat, bootsam, stats, bootoob] = bootstrp (argin1, argin2, varargi
           paropt = value;
         case {'match', 'matched', 'matching'}
           match = value;
+        case 'strata'
+          strata = value;
         case 'seed'
           seed = value;
         case 'loo'
@@ -214,7 +225,7 @@ function [bootstat, bootsam, stats, bootoob] = bootstrp (argin1, argin2, varargi
   end
 
   % Error checking
-  % nboot input argument
+  % Evaluate nboot input argument
   if ((nargin < 2) || isempty (nboot))
     nboot = 1999;
   else
@@ -324,6 +335,29 @@ function [bootstat, bootsam, stats, bootoob] = bootstrp (argin1, argin2, varargi
     end
   end
 
+  % Evaluate strata input argument
+  if (~ isempty (strata))
+    if (~ isnumeric (strata))
+      % Convert strata to numeric ID
+      [jnk1, jnk2, strata] = unique (strata);
+      clear jnk1 jnk2;
+    end
+    strata = strata(:);
+    if ( size (strata, 1) ~= n{1} )
+      error ('bootstrp: STRATA must have same number of rows as data');
+    end
+    if (~ match)
+      error ('bootstrp: Stratified resampling only possible when "match" is true')
+    end
+    % Get strata IDs
+    gid = unique (strata);  % strata ID
+    K = numel (gid);        % number of strata
+    % Create strata matrix
+    g = cell2mat (cellfun (@(k) strata == gid(k), num2cell (1 : K), ...
+                           'UniformOutput', false));
+    nk = sum (g);           % strata sample sizes
+  end
+
   % bootfun input argument
   if ((nargin > 2) && (~ isempty (bootfun)))
     if (iscell (bootfun))
@@ -390,6 +424,10 @@ function [bootstat, bootsam, stats, bootoob] = bootstrp (argin1, argin2, varargi
                        ' in number to their non-matching data arguments'))
       end
     end
+    if (~ isempty (strata))
+      error (cat(2, 'bootstrp: Weights cannot be used in conjunction with', ...
+                    ' the "Strata" option'))
+    end
     if (any (arrayfun (@(v) any (bsxfun (@lt, w{v}, 0)), 1 : nvar)))
       error ('bootstrp: Weights cannot contain negative values')
     end
@@ -414,8 +452,21 @@ function [bootstat, bootsam, stats, bootoob] = bootstrp (argin1, argin2, varargi
 
   % Perform balanced bootstrap resampling
   if (match)
-    bootsam = repmat (mat2cell (boot (n{1}, nboot, loo, seed, w{1}), ...
-                                n{1}, nboot), nvar, 1);
+    if isempty(strata)
+      bootsam = repmat (mat2cell (boot (n{1}, nboot, loo, seed, w{1}), ...
+                                  n{1}, nboot), nvar, 1);
+    else
+      % Stratified bootstrap resampling using STRATA input argument
+      bootsam = zeros (n{1}, nboot, 'int32');
+      for k = 1 : K
+        if (nk(k) > 1)
+          bootsam(g(:, k), :) = boot (find (g(:, k)), nboot, loo, seed + k);
+        else
+          bootsam(g(:, k), :) = int32 (find (g(:, k)) * ones (1, nboot));
+        end
+      end
+      bootsam = repmat (mat2cell (bootsam, n{1}, nboot), nvar, 1);
+    end
   else
     seed =  arrayfun(@(v) seed + v - 1, 1:nvar, 'UniformOutput', false);
     bootsam = cellfun (@(n, w, seed) boot (n, nboot, loo, seed, w), ... 
@@ -676,8 +727,11 @@ end
 %! bootstrp (50, @mldivide, cat (2, ones (20, 1), X), Y);
 %! bootstrp (50, @(x, y) mldivide (x, cell2mat (y)), ...
 %!                          cat (2, ones (20, 1), X), num2cell (Y, 2));
-%! bootstrp (50, @mean, X, 'seed', 1);
-%! bootstrp (50, @mean, X, 'loo', false);
+%! bootstrp (50, @mean, X, 'Seed', 1);
+%! bootstrp (50, @mean, X, 'LOO', false);
 %! bootstrp (50, @mean, X, 'Weights', rand (20, 1));
-%! bootstrp (50, @mean, X, 'seed', 1, 'loo', false, 'Weights', rand (20, 1));
-
+%! bootstrp (50, @mean, X, 'Seed', 1, 'loo', false, 'Weights', rand (20, 1));
+%! strata1 = cat (1, 1 * ones (10, 1), 2 * ones (9, 1), 3);
+%! bootstrp (50, @mean, X, 'Strata', strata1);
+%! strata2 = cat (2, repmat ({'A'}, 1, 10), repmat ({'B'}, 1, 10));
+%! bootstrp (50, @mean, X, 'Strata', strata2);

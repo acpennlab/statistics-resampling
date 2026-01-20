@@ -2263,9 +2263,8 @@ end
 %! [STATS, BOOTSTAT, AOVSTAT] = bootlm (strength, alloy, 'display', 'off', 
 %!                                      'varnames', 'alloy');
 %! fprintf ('ONE-WAY ANOVA SUMMARY\n')
-%! fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-%!            AOVSTAT.DF, AOVSTAT.DFE, AOVSTAT.F, ...
-%!            AOVSTAT.PVAL, AOVSTAT.MODEL{1});
+%! fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+%!          AOVSTAT.F, AOVSTAT.PVAL, AOVSTAT.MODEL{1});
 %!
 %! % 95% confidence intervals and p-values for the differences in mean strength
 %! % of the three alloys (computed by wild bootstrap)
@@ -2297,9 +2296,8 @@ end
 %!                                   'varnames', 'seconds', 'clustid', subject);
 %!
 %! fprintf ('ANOVA SUMMARY\n')
-%! fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-%!            AOVSTAT.DF(1), AOVSTAT.DFE, AOVSTAT.F(1), ...
-%!            AOVSTAT.PVAL(1), AOVSTAT.MODEL{1});
+%! fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+%!          AOVSTAT.F(1), AOVSTAT.PVAL(1), AOVSTAT.MODEL{1});
 %!
 %! % 95% confidence intervals and p-values for the differences in mean number
 %! % of words recalled for the different times (using wild cluster bootstrap).
@@ -2384,9 +2382,8 @@ end
 %!
 %! fprintf ('ANOVA SUMMARY\n')
 %! for i = 1:numel(AOVSTAT.F)
-%!   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-%!            AOVSTAT.DF(i), AOVSTAT.DFE, AOVSTAT.F(i), ...
-%!            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
+%!   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+%!            AOVSTAT.F(i), AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
 %! end
 %!
 %! % There is a significant interaction so we shall get estimated marginal means
@@ -2435,9 +2432,8 @@ end
 %!
 %! fprintf ('ANOVA SUMMARY with gender averaged over levels of degree\n')
 %! for i = 1:numel(AOVSTAT.F)
-%!   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-%!            AOVSTAT.DF(i), AOVSTAT.DFE, AOVSTAT.F(i), ...
-%!            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
+%!   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+%!            AOVSTAT.F(i), AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
 %! end
 %!
 %! % Since the interaction is not significant (F(1,18) = 0.42, p = 0.568), we
@@ -2463,9 +2459,8 @@ end
 %!
 %! fprintf ('\nANOVA SUMMARY with degree averaged over levels of gender\n')
 %! for i = 1:numel(AOVSTAT.F)
-%!   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-%!            AOVSTAT.DF(i), AOVSTAT.DFE, AOVSTAT.F(i), ...
-%!            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
+%!   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+%!            AOVSTAT.F(i), AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
 %! end
 %!
 %! % We can now see in the output that there is no significant difference in
@@ -2518,17 +2513,15 @@ end
 %!                             {'degree', 'gender'}, 'seed', 1);
 %!
 %! fprintf ('\nANOVA SUMMARY (with type II sums-of-squares for main effects)\n')
-%! fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s (gender)\n', ...
-%!            AOVSTAT1.DF(2), AOVSTAT1.DFE, AOVSTAT1.F(2), ...
-%!            AOVSTAT1.PVAL(2), AOVSTAT1.MODEL{2});
+%! fprintf ('F = %.2f, p = %.3g for the model: %s (gender)\n', ...
+%!          AOVSTAT1.F(2), AOVSTAT1.PVAL(2), AOVSTAT1.MODEL{2});
 %!
 %! [~, ~, AOVSTAT2] = bootlm (salary, {gender, degree}, 'model', ...
 %!                             'linear', 'display', 'off', 'varnames', ...
 %!                             {'gender', 'degree'}, 'seed', 1);
 %!
-%! fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s (degree)\n', ...
-%!            AOVSTAT2.DF(2), AOVSTAT2.DFE, AOVSTAT2.F(2), ...
-%!            AOVSTAT2.PVAL(2), AOVSTAT2.MODEL{2});
+%! fprintf ('F = %.2f, p = %.3g for the model: %s (degree)\n', ...
+%!          AOVSTAT2.F(2), AOVSTAT2.PVAL(2), AOVSTAT2.MODEL{2});
 %!
 %! % Here is the output from 'anovan' for comparison:
 %! % ANOVA TABLE (Type II sums-of-squares):
@@ -2583,9 +2576,8 @@ end
 %!
 %! fprintf ('\nANCOVA SUMMARY (with type I sums-of-squares)\n')
 %! for i = 1:numel(AOVSTAT.F)
-%!   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-%!            AOVSTAT.DF(i), AOVSTAT.DFE, AOVSTAT.F(i), ...
-%!            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
+%!   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+%!            AOVSTAT.F(i), AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
 %! end
 %!
 %! % Perform ANCOVA (type II sums-of-squares)
@@ -2596,18 +2588,16 @@ end
 %!                           'contrasts', 'anova', 'seed', 1);
 %!
 %! fprintf ('\nANOVA SUMMARY (with type II sums-of-squares)\n')
-%! fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s (species)\n', ...
-%!            AOVSTAT1.DF(2), AOVSTAT1.DFE, AOVSTAT1.F(2), ...
-%!            AOVSTAT1.PVAL(2), AOVSTAT1.MODEL{2});
+%! fprintf ('F = %.2f, p = %.3g for the model: %s (species)\n', ...
+%!          AOVSTAT1.F(2), AOVSTAT1.PVAL(2), AOVSTAT1.MODEL{2});
 %!
 %! [~, ~, AOVSTAT2] = bootlm (pulse, {species, temp}, 'model', ...
 %!                           'linear', 'continuous', 2, 'display', 'off', ...
 %!                           'varnames', {'species', 'temp'}, ...
 %!                           'contrasts', 'anova', 'seed', 1);
 %!
-%! fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s (temp)\n', ...
-%!            AOVSTAT2.DF(2), AOVSTAT2.DFE, AOVSTAT2.F(2), ...
-%!            AOVSTAT2.PVAL(2), AOVSTAT2.MODEL{2});
+%! fprintf ('F = %.2f, p = %.3g for the model: %s (temp)\n', ...
+%!          AOVSTAT2.F(2), AOVSTAT2.PVAL(2), AOVSTAT2.MODEL{2});
 %!
 %! % Estimate regression coefficients using 'anova' contrast coding 
 %! STATS = bootlm (pulse, {temp, species}, 'model', 'linear', ...
@@ -2663,9 +2653,8 @@ end
 %!
 %! fprintf ('ANOVA SUMMARY\n')
 %! for i = 1:numel(AOVSTAT.F)
-%!   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-%!            AOVSTAT.DF(i), AOVSTAT.DFE, AOVSTAT.F(i), ...
-%!            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
+%!   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+%!            AOVSTAT.F(i), AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
 %! end
 %!
 %! % Check regression coefficient corresponding to drug x feedback x diet
@@ -2725,9 +2714,8 @@ end
 %!
 %! fprintf ('ANOVA / ANCOVA SUMMARY\n')
 %! for i = 1:numel(AOVSTAT.F)
-%!   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-%!            AOVSTAT.DF(i), AOVSTAT.DFE, AOVSTAT.F(i), ...
-%!            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
+%!   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+%!            AOVSTAT.F(i), AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
 %! end
 %!
 %! % Estimate regression coefficients
@@ -2813,9 +2801,8 @@ end
 %!                                      'seed', 1, 'display', 'off');
 %! 
 %! fprintf ('ANOVA SUMMARY\n')
-%! fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-%!            AOVSTAT.DF(1), AOVSTAT.DFE, AOVSTAT.F(1), ...
-%!            AOVSTAT.PVAL(1), AOVSTAT.MODEL{1});
+%! fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+%!          AOVSTAT.F(1), AOVSTAT.PVAL(1), AOVSTAT.MODEL{1});
 
 %!demo
 %!
@@ -2849,9 +2836,8 @@ end
 %!
 %! fprintf ('ANOVA SUMMARY for the between-subjects design.\n')
 %! for i = 1:numel(aovstat.F)
-%!   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-%!              aovstat.DF(i), aovstat.DFE, aovstat.F(i), ...
-%!              aovstat.PVAL(i), aovstat.MODEL{i});
+%!   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+%!            aovstat.F(i), aovstat.PVAL(i), aovstat.MODEL{i});
 %! end
 %! 
 %! % Lets consider having a mixed design with rodents allocated into control and
@@ -2875,9 +2861,8 @@ end
 %!
 %! fprintf ('\nANOVA SUMMARY for the mixed between/within subjects design.\n')
 %! for i = 1:numel(aovstat.F)
-%!   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-%!              aovstat.DF(i), aovstat.DFE, aovstat.F(i), ...
-%!              aovstat.PVAL(i), aovstat.MODEL{i});
+%!   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+%!            aovstat.F(i), aovstat.PVAL(i), aovstat.MODEL{i});
 %! end
 
 %!demo

@@ -951,8 +951,10 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
     dft = n - 1;
     dfe = dft - sum (df);
     if (dfe < 1)
-      error (cat (2, 'bootlm: there are no error degrees of freedom in', ...
-                     ' the specified model'))
+      if strcmpi (METHOD, 'wild')
+        error (cat (2, 'bootlm: there are no error degrees of freedom in', ...
+                       ' the specified model'))
+      end
     end
 
     % If applicable, create hypothesis matrix
@@ -1775,8 +1777,9 @@ function C = contr_helmert (N)
 
   % Create contrast matrix (of doubles) using Helmert coding contrasts
   % These contrasts are orthogonal and centered (i.e. sum to 0)
-  C = cat (1, tril (- ones (N - 1), -1) + diag ((N - 1):-1:1), ...
-              -ones (1, N - 1)) ./ (N:-1:2);
+  C = bsxfun (@rdivide, ...
+             cat (1, diag ((N - 1):-1:1) + tril (-ones (N - 1), - 1), ...
+                     -ones(1, N-1)), N:-1:2);
 
 end
 
@@ -2081,10 +2084,14 @@ function AOVSTAT = bootanova (Y, X, DF, DFE, DEP, NBOOT, ALPHA, SEED, ...
         %   PVAL(j) = sum (BOOTF >= F(j)) / NBOOT
         % but with interpolation.
         [x, jnk, P] = bootcdf (BOOTF, true, 1);
-        if (F(j) < x(1))
-          PVAL(j) = interp1 (x, P, F(j), 'linear', 1);
+        if (size (x) > 1)
+          if (F(j) < x(1))
+            PVAL(j) = interp1 (x, P, F(j), 'linear', 1);
+          else
+            PVAL(j) = interp1 (x, P, F(j), 'linear', res_lim);
+          end
         else
-          PVAL(j) = interp1 (x, P, F(j), 'linear', res_lim);
+          PVAL(j) = sum (BOOTF >= F(j)) / NBOOT;
         end
 
   end
@@ -2162,11 +2169,11 @@ function PRED_ERR = booterr (Y, X, DF, n, DEP, NBOOT, ALPHA, SEED, ...
   Wt = RL / sum (RL);               % EIC weights
 
   % Transform prediction errors to predicted R-squared statistics
-  PRESS = PE * n;                             % Bootstrap estimate of predicted 
-                                              % residual error sum of squares
-  SST = RSS{1};                               % Total sum of squares
-  PE_RSQ = 1 - PRESS / SST;                   % Predicted R-squared calculated 
-                                              % by refined bootstrap
+  PRESS = PE * n;                   % Bootstrap estimate of predicted 
+                                    % residual error sum of squares
+  SST = RSS{1};                     % Total sum of squares
+  PE_RSQ = 1 - PRESS / SST;         % Predicted R-squared calculated 
+                                    % by refined bootstrap
 
   % Prepare output
   PRED_ERR = struct ('MODEL', [], 'PE', PE, 'PRESS', PRESS, ...
@@ -2802,7 +2809,7 @@ end
 %! group = {'A' 'B' 'C'; 'A' 'B' 'C'; 'A' 'B' 'C'; 'A' 'B' 'C'; ...
 %!          'A' 'B' 'C'; 'A' 'B' 'C'; 'A' 'B' 'C'; 'A' 'B' 'C'};
 %!
-%! [STATS, BOOTSTAT, AOVSTAT] = bootlm (data, group, 'clustid', clustid, ...
+%! [STATS, BOOTSTAT, AOVSTAT] = bootlm (data, {group}, 'clustid', clustid, ...
 %!                                      'seed', 1, 'display', 'off');
 %! 
 %! fprintf ('ANOVA SUMMARY\n')
@@ -3439,3 +3446,4 @@ end
 %!                                      'display', 'off');
 %! 
 %! assert (aovstat.PVAL, 0.0003126737580895793, 1e-09);
+

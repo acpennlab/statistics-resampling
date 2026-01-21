@@ -216,9 +216,10 @@
 %
 %            Credible intervals for correlation coefficients are computed via
 %            Fisher’s z-transform with effective degrees of freedom equal to
-%            m / DEFF - trace (H_lambda). Bayes factors use the Savage–Dickey
-%            ratio in Fisher‑z space with a Uniform(-1,1) prior on R
-%            (equivalently Logistic(0, 1/2) prior on z) and the same t-marginal
+%            m / DEFF - trace (H_lambda), where m is the total number of
+%            observations (see DETAIL below). Bayes factors use the Savage–
+%            Dickey ratio in Fisher‑z space with a Uniform (-1,1) prior on R
+%            (equivalently Logistic (0, 1/2) prior on z) and the same t-marginal
 %            posterior layer (df_t). Diagonal entries are undefined and not
 %            included.
 %
@@ -249,18 +250,40 @@
 %      the Normal ridge prior used to shrink slope coefficients toward zero [11].
 %
 %      UNCERTAINTY AND CLUSTERING:
-%      Uncertainty quantification uses a marginal Student’s t layer to 
-%      approximate integration over residual-variance uncertainty. This is 
-%      crucial for nested or clustered data, where effective sample size is 
-%      reduced. Specifically, inferential degrees of freedom are taken as:
-%            df_t = (m / DEFF) - trace (H_lambda)
-%      where H_lambda is the ridge hat matrix. Residual variance (Sigma_Y_hat) 
-%      uses df_lambda = m - trace(H_lambda) and is inflated by DEFF; this 
-%      separation allows for accurate estimation while ensuring that inference 
-%      respects the cluster-driven reduction in independent information. The use 
-%      of t‑based adjustments is in line with classical variance component 
-%      approximations (e.g., Satterthwaite/Kenward–Roger) and ridge inference 
-%      recommendations [12–14].
+%      The design effect (Deff) specified by DEFF is integrated throughout the
+%      model consistent with its definition:
+%             DEFF(parameter) =  Var_true(parameter) / Var_iid(parameter)
+%      This guards against dependence between observations leading to anti-
+%      conservative inference. This adjustment occurs at three levels:
+%
+%      1. Prior Learning: The ridge tuning constant (lambda) is selected by
+%         minimizing predictive error on the i.i.d. bootstrap scale and then 
+%         divided by DEFF. This "dilutes" the prior precision, ensuring the 
+%             lambda_iid   = sigma^2 / tau^2_iid
+%             tau^2_true   = DEFF * tau^2_iid
+%             lambda_true  = sigma^2 / tau^2_true = lambda_iid / DEFF
+%         where sigma^2 (a.k.a. Sigma_Y_hat) is residual variance (data space)
+%         and tau^2 (a.k.a. tau2_hat) is the prior variance (parameter space).
+%
+%      2. Scale Estimation: Residual variance (Sigma_Y_hat) is estimated using
+%         the ridge-adjusted degrees of freedom (df_lambda = m - trace(H_lambda))
+%         and is then inflated by a factor of DEFF. This yields an "effective"
+%         noise scale on the derived parameter statistics that accounts for
+%         within-cluster correlation [12, 13] according to:
+%             Var_true(beta_hat) = DEFF * Var_iid(beta_hat)
+%
+%      3. Inferential Shape: A marginal Student’s t layer is used for all 
+%         quantiles and Bayes factors to account for uncertainty in the variance 
+%         estimate. To prevent over-certainty in small-cluster settings, the 
+%         inferential degrees of freedom are reduced: 
+%             df_t = (m / DEFF) - trace (H_lambda), where m is size (Y, 1)
+%         This ensures that both the scale (width) and the shape (tails) of the
+%         posterior distributions are calibrated for the effective sample size.
+%         The use of t‑based adjustments is akin to placing an Inverse-Gamma
+%         prior (alpha = df_t / 2, beta = Sigma_Y_hat) on the residual variance
+%         and is in line with classical variance component approximations (e.g.,
+%         Satterthwaite/Kenward–Roger) and ridge inference recommendations
+%         [12–14].
 %
 %      BAYES FACTORS:
 %      For regression coefficients and linear estimates, priors and posteriors
@@ -279,17 +302,41 @@
 %      t-marginal with df_t, providing a closed-form, non-arbitrary Savage–
 %      Dickey BF for residual correlations [3, 16].
 %
-%      Predictors are left on their original scale; the ridge penalty equals the
-%      column variances of X so shrinkage is equivalent to standardizing
-%      continuous predictors prior to fitting (categorical terms are exempt from
-%      variance-based penalty scaling). Prior standard deviations are reported
-%      on the original coefficient scale.
+%      SUMMARY OF PRIORS:
+%      The model employs the following priors for empirical Bayes inference:
+%        o Intercept: Flat/Uniform prior, U(-Inf, Inf).
+%        o Slopes: Marginal Student's t prior, t(0, sigma_prior, df_t), where 
+%          the scale is determined by the bootstrap-optimized lambda and DEFF.
+%        o Residual Variance: Implicit Inverse-Gamma prior, Inv-Gamma(df_t/2, 
+%          Sigma_Y_hat), marginalized to produce the t-layer.
+%        o Correlations: Flat/Uniform prior, U(-1, 1), on the correlation 
+%          coefficient scale.
 %
-%      NOTE: This function is suitable for models with continuous outcome
-%      variables only and assumes a linear Normal (Gaussian) likelihood. It is
-%      not intended for binary, count, or categorical outcomes. Binary and
-%      categorical predictors are supported provided the outcome variable is
-%      continuous.
+%      SUITABILITY: 
+%      This function is designed for models with continuous outcomes and 
+%      assumes a linear Normal (Gaussian) likelihood. It is not suitable for 
+%      binary, count, or categorical outcomes. However, binary and categorical 
+%      predictors are supported. 
+%
+%      INTERNAL SCALING AND STANDARDIZATION: 
+%      All scaling and regularization procedures for optimizing the ridge
+%      parameter are handled internally to ensure numerical stability and
+%      balanced, scale-invariant shrinkage. To ensure all outcomes contribute 
+%      equally to the global regularization regardless of their units, the 
+%      ridge parameter (lambda) is optimized using internally standardized 
+%      outcomes. 
+%
+%      When refitting the model with the optimal ridge parameter, while 
+%      predictors are maintained on their original scale, the ridge penalty 
+%      matrix is automatically constructed with diagonal elements proportional 
+%      to the column variances of X. This ensures that the shrinkage applied 
+%      to coefficients is equivalent to that of standardized predictors, 
+%      without requiring manual preprocessing (categorical terms are identified 
+%      via CATEGOR and are exempt from this variance-based penalty scaling). 
+%      Following optimization, the final model is refit to the outcomes on 
+%      their original scale; consequently, all posterior summaries, 
+%      credibility intervals, and prior standard deviations are reported 
+%      directly on the original coefficient scale for ease of interpretation.
 %
 %      See also: `bootstrp`, `boot`, `bootlm`.
 %
@@ -506,17 +553,19 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
 
   % Heuristic correction to lambda (prior precision) for the design effect.
   % Empirical-Bayes ridge learns lambda as an inverted estimator-scale SNR:
-  %   lambda_iid ≈ sigma^2 / Var_iid(beta_hat).
+  %    lambda_iid ≈ sigma^2 / tau2_iid
+  % where sigma^2 (a.k.a. Sigma_Y_hat) is residual variance (data space)
+  % and tau^2 (a.k.a. tau2_hat) is the prior variance (parameter space).
   %
-  % Under clustering, the marginal noise variance sigma^2 is unchanged,
-  % but the sampling variance of beta_hat is inflated:
-  %   Var_true(beta_hat) = Deff * Var_iid(beta_hat).
+  % Under clustering, the information density is reduced. To maintain 
+  % a consistent prior scale, the prior variance must be inflated:
+  %    tau2_true = DEFF * tau2_iid
   %
-  % Hence the EB precision learned under an i.i.d. assumption is too large and:
-  %   lambda_true ≈ sigma^2 / Var_true(beta_hat) = lambda_iid / Deff.
+  % Hence the EB precision learned under an i.i.d. assumption is too large:
+  %    lambda_true = sigma^2 / tau2_true = lambda_iid / DEFF
   %
-  % Thus, our apparent prior precision (lamdba) under i.i.d. must be scaled
-  % down by a factor of Deff.
+  % Thus, our apparent prior precision (lambda) under i.i.d. must be scaled
+  % down by a factor of DEFF to prevent over-regularization.
   lambda = lambda / deff;
 
   % Regression coefficient and the effective degrees of freedom for ridge
@@ -539,7 +588,7 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
   tau2_hat = Sigma_Y_hat / lambda;
 
   % Posterior covariance (diagonal block) for the coefficients within outcome j;
-  % Sigma_Beta{j} = Deff * Sigma_Y_hat(j,j) * invA
+  % Sigma_Beta{j} = Sigma_Y_hat(j,j) * invA
   invA = A \ eye(n);
   Sigma_Beta = arrayfun (@(j) Sigma_Y_hat(j, j) * invA, (1 : q), ...
                         'UniformOutput', false);
@@ -547,8 +596,8 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
   % Distribution functions.
   % Student's (t) distribution:
   % A t-distribution for the prior and posterior is a mathematical approximation
-  % in this empirical Bayes framework to having placed an prior on the variance
-  % and integrating it out.
+  % in this empirical Bayes framework to having placed an Inverse-Gamma prior on
+  % the variance and integrating it out.
   if ((exist ('betaincinv', 'builtin')) || (exist ('betaincinv', 'file')))
     distinv = @(p, df) sign (p - 0.5) * ...
                 sqrt ( df ./ betaincinv (2 * min (p, 1 - p), df / 2, 0.5) - df);

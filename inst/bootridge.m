@@ -96,19 +96,15 @@
 %      rather than the model coefficients.
 %
 %      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF)' specifies a design
-%      effect used to account for clustering or other forms of dependence
-%      between observations. The design effect inflates the estimator‑scale
-%      (posterior) covariance and reduces the effective degrees of freedom used
-%      for posterior quantiles and Bayes factors, reflecting the reduction in
-%      effective sample size due to dependence. This adjustment propagates
-%      coherently to empirical- Bayes prior learning (via calibration of the
-%      prior precision), posterior uncertainty, and Bayes factors. The default
-%      value of DEFF is 1.
-%
-%      If the data have an average cluster size of g, an upper bound for DEFF is
-%      g under Kish's design effect for cluster sampling, corresponding to the
-%      (extreme) case of perfect positive within-cluster dependence (r = +1):
-%        DEFF = 1 + (g - 1) * r = 1 + (g - 1) * 1 = g
+%      effect used to account for clustering or dependence. DEFF inflates the
+%      posterior covariance and reduces the effective degrees of freedom (df_t) 
+%      to ensure Bayes factors and intervals are calibrated for the effective 
+%      sample size. For a mean, Kish's formula DEFF = 1+(g-1)*r (where g is 
+%      cluster size) suggests an upper bound of g. However, for regression 
+%      slopes, the realized DEFF depends on the predictor type: it can exceed 
+%      g for between-cluster predictors or be less than 1 for within-cluster 
+%      predictors. DEFF is best estimated as the ratio of clustered-to-i.i.d. 
+%      sampling variances - please see DETAIL below. Default DEFF is 1.
 %
 %      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED)' initialises the
 %      Mersenne Twister random number generator using an integer SEED value so
@@ -250,8 +246,8 @@
 %      the Normal ridge prior used to shrink slope coefficients toward zero [11].
 %
 %      UNCERTAINTY AND CLUSTERING:
-%      The design effect (Deff) specified by DEFF is integrated throughout the
-%      model consistent with its definition:
+%      The design effect specified by DEFF is integrated throughout the model
+%      consistent with its definition:
 %             DEFF(parameter) =  Var_true(parameter) / Var_iid(parameter)
 %      This guards against dependence between observations leading to anti-
 %      conservative inference. This adjustment occurs at three levels:
@@ -284,6 +280,19 @@
 %         and is in line with classical variance component approximations (e.g.,
 %         Satterthwaite/Kenward–Roger) and ridge inference recommendations
 %         [12–14].
+%
+%      ESTIMATING THE DESIGN EFFECT:
+%      While DEFF = 1 + (g - 1) * r provides a useful analytical upper bound 
+%      based on cluster size (g) and intraclass correlation (r), the realized 
+%      impact of dependence on regression slopes often varies by predictor type. 
+%      For complex designs, DEFF is best estimated as the mean ratio of the 
+%      parameter variances—obtained from the variances of the bootstrap 
+%      distributions under a cluster-robust estimator (e.g., wild cluster 
+%      bootstrap via `bootwild` or cluster-based bayesian bootstrap via 
+%      `bootbayes`) relative to an i.i.d. assumption. Supplying this 
+%      "Effective DEFF" allows `bootridge` to provide analytical Bayesian 
+%      inference that approximates the results of a full hierarchical or 
+%      resampled model [17, 18].
 %
 %      BAYES FACTORS:
 %      For regression coefficients and linear estimates, priors and posteriors
@@ -338,7 +347,7 @@
 %      credibility intervals, and prior standard deviations are reported 
 %      directly on the original coefficient scale for ease of interpretation.
 %
-%      See also: `bootstrp`, `boot`, `bootlm`.
+%      See also: `bootstrp`, `boot`, `bootlm`, `bootbayes` and `bootwild`.
 %
 %  Bibliography:
 %  [1] Delaney, N. J. & Chatterjee, S. (1986) Use of the Bootstrap and Cross-
@@ -376,6 +385,11 @@
 % [16] Ly, A., Verhagen, J., & Wagenmakers, E.-J. (2016) Harold Jeffreys’s
 %      Default Bayes Factor Hypothesis Tests: Explanation, Extension, and
 %      Application in Psychology. J. Math. Psych., 72:19–32. (Correlation priors)
+% [17] Neuhaus, J. M., & Segal, M. R. (1993) Design Effects for Binary 
+%      Regression Models with Hierarchical Data. Biometrics, 49(3):971–979. 
+%      (Generalized DEFF for regression).
+% [18] Cameron, A. C., & Miller, D. L. (2015) A Practitioner's Guide to 
+%      Cluster-Robust Inference. J. Hum. Resour., 50(2):317–372.
 %
 %  bootridge (version 2026.01.16)
 %  Author: Andrew Charles Penn

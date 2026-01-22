@@ -13,341 +13,96 @@
 %      a linear Normal (Gaussian) likelihood with an empirical Bayes normal
 %      ridge prior on the regression coefficients. The ridge tuning constant
 %      (lambda) is selected by minimizing the .632 bootstrap estimate of
-%      prediction error [1, 2]. Y is an m-by-q matrix of outcomes and X is an
-%      m-by-n design matrix whose first column must correspond to an intercept
-%      term. If an intercept term (a column of ones) is not found in the first
-%      column of X, one is added automatically. If any rows of X or Y contain
-%      missing values (NaN) or infinite values (+/- Inf), the corresponding
-%      observations are omitted before fitting.
+%      prediction error calculated using the mean Huber loss [1, 2]. Y is an 
+%      m-by-q matrix of outcomes and X is an m-by-n design matrix whose first 
+%      column must correspond to an intercept term. Missing or infinite values 
+%      in X or Y are omitted before fitting.
 %
-%      For each outcome, the function prints posterior summaries for regression
-%      coefficients or linear estimates, including posterior means, equal-tailed
-%      credible intervals, Bayes factors (lnBF10), and the marginal prior used
-%      for inference. When multiple outcomes are fitted (q > 1), the function
-%      additionally prints posterior summaries for the residual correlations
-%      between outcomes, reported as unique (lower-triangular) outcome pairs.
-%      For each correlation, the printed output includes the estimated
-%      correlation, its credible interval, and the corresponding Bayes factor
-%      for testing zero correlation.
+%      For each outcome, the function prints posterior summaries including 
+%      means, equal-tailed credible intervals, and Bayes factors (lnBF10). 
+%      When q > 1, summaries for residual correlations between outcomes are 
+%      additionally provided.
 %
 %      Interpretation note (empirical Bayes):
 %        Bayes factors reported by 'bootridge' are empirical‑Bayes approximations
 %        based on a data‑tuned ridge prior. They are best viewed as model‑
-%        comparison diagnostics (evidence on a predictive, information‑theoretic
-%        scale) rather than literal posterior odds under a fully specified prior
-%        [3–5]. The log scale (lnBF10) is numerically stable and recommended
-%        for interpretation; BF10 may be shown as 0 or Inf when beyond machine
-%        range, while lnBF10 remains finite.
+%        comparison diagnostics (evidence on a predictive scale) rather than 
+%        literal posterior odds [3–5]. The log scale (lnBF10) is numerically 
+%        stable and recommended for interpretation.
 %
-%      For convenience, the statistics-resampling package also provides the
-%      function `bootlm`, which offers a user-friendly but feature-rich interface
-%      for fitting univariate linear models with continuous and categorical
-%      predictors. The design matrix X and hypothesis matrix L returned in the
-%      MAT-file produced by `bootlm` can be supplied directly to `bootridge`.
-%      The outputs of `bootlm` also provide a consistent definition of the model
-%      coefficients, thereby facilitating interpretation of parameter estimates,
-%      contrasts, and posterior summaries. The design matrix X and hypothesis
-%      matrix L can also be obtained the same way with one of the outcomes of a
-%      multivariate data set, then fit to all the outcomes using bootridge.
+%      'bootridge (Y, X, CATEGOR)' selects predictor columns corresponding to
+%      categorical variables (scalar or vector of column indices, excluding
+%      the intercept). CATEGOR ensures that variance‑based penalty scaling is 
+%      not applied to coded categorical terms (categoricals use a unit penalty)
 %
-%      'bootridge (Y, X, CATEGOR)' specifies the predictor columns that
-%      correspond to categorical variables. CATEGOR must be a scalar or vector
-%      of integer column indices referring to columns of X (excluding the
-%      intercept). Alternatively, if all predictor terms are categorical, set
-%      CATEGOR to 'all' or '*'. CATEGOR does NOT create or modify dummy or
-%      contrast coding; users are responsible for supplying an appropriately
-%      coded design matrix X. The indices in CATEGOR are used to identify
-%      predictors that represent categorical variables, even when X is already
-%      coded, so that variance-based penalty scaling is not applied to these
-%      terms.
+%      'bootridge (Y, X, CATEGOR, NBOOT)' sets the number of bootstrap samples 
+%      used for tuning (default = 100). The function utilizes balanced 
+%      bootknife (leave-one-out) resampling to ensure valid out-of-bag samples.
 %
-%      For categorical predictors in ridge regression, use meaningful centered
-%      and preferably orthogonal (e.g. Helmert or polynomial) contrasts whenever
-%      possible, since shrinkage occurs column-wise in the coefficient basis.
-%      Orthogonality leads to more stable shrinkage and tuning of the ridge
-%      parameter. Although the prior is not rotationally invariant, Bayes
-%      factors for linear contrasts defined via a hypothesis matrix (L) are
-%      typically more stable when the contrasts defining the coefficients are
-%      orthogonal.
+%      'bootridge (..., ALPHA)' sets the two‑tailed error rate for credibility
+%      intervals (default ALPHA = 0.05 for 95% central credible intervals).
 %
-%      'bootridge (Y, X, CATEGOR, NBOOT)' sets the number of bootstrap samples
-%      used to estimate the .632 bootstrap prediction error. The bootstrap has
-%      first order balance to improve the efficiency for variance estimation,
-%      and utilizes bootknife (leave-one-out) resampling to guarantee
-%      observations in the out-of-bag samples. The default value of NBOOT is 100.
+%      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L)' specifies a hypothesis 
+%      matrix L (n-by-c) to report summaries for linear contrasts or 
+%      estimates rather than raw model coefficients.
 %
-%      The bootstrap tuning of the ridge parameter relies on resampling
-%      functionality provided by the statistics-resampling package. In
-%      particular, `bootridge` depends on the functions `bootstrp` and `boot` to
-%      perform balanced bootstrap and bootknife (leave-one-out) resampling and
-%      generate out-of-bag samples. These functions are required for estimation
-%      of the .632 bootstrap prediction error used to select the ridge tuning
-%      constant.
+%      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF)' specifies a design 
+%      effect to account for clustering. DEFF inflates the posterior 
+%      covariance and reduces the effective degrees of freedom (df_t) to 
+%      calibrate inference for effective sample size.
 %
-%      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA)' sets the central mass of equal-
-%      tailed credibility intervals (CI) to (1 - ALPHA), with probability mass
-%      ALPHA/2 in each tail. ALPHA must be a scalar value between 0 and 1. The
-%      default value of ALPHA is 0.05 for 95% intervals.
+%      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED)' sets the 
+%      bootstrap resampling seed for reproducible and stable tuning.
 %
-%      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L)' specifies a hypothesis
-%      matrix L of size n-by-c defining c linear contrasts or model-based
-%      estimates of the regression coefficients. In this case, posterior
-%      summaries and credible intervals are reported for the linear estimates
-%      rather than the model coefficients.
-%
-%      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF)' specifies a design
-%      effect used to account for clustering or dependence. DEFF inflates the
-%      posterior covariance and reduces the effective degrees of freedom (df_t) 
-%      to ensure Bayes factors and intervals are calibrated for the effective 
-%      sample size. For a mean, Kish's formula DEFF = 1+(g-1)*r (where g is 
-%      cluster size) suggests an upper bound of g. However, for regression 
-%      slopes, the realized DEFF depends on the predictor type: it can exceed 
-%      g for between-cluster predictors or be less than 1 for within-cluster 
-%      predictors. DEFF is best estimated as the ratio of clustered-to-i.i.d. 
-%      sampling variances - please see DETAIL below. Default DEFF is 1.
-%
-%      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED)' initialises the
-%      Mersenne Twister random number generator using an integer SEED value so
-%      that bootstrap results are reproducible.
-%
-%      'S = bootridge (Y, X, ...)' returns a structure containing posterior
-%      summaries including posterior means, credibility intervals, Bayes factors,
-%      prior summaries, the bootstrap-optimized ridge parameter, residual
-%      covariance estimates, and additional diagnostic information.
-%
-%      The output S is a structure containing the following fields (listed in
-%      order of appearance):
-%
-%        o Coefficient
-%            n-by-q matrix of posterior mean regression coefficients for each
-%            outcome when no hypothesis matrix L is specified.
-%
-%        o Estimate
-%            c-by-q matrix of posterior mean linear estimates when a hypothesis
-%            matrix L is specified. This field is returned instead of
-%            'Coefficient' when L is non-empty.
-%
-%        o CI_lower
-%            Matrix of lower bounds of the (1 - ALPHA) credibility intervals
-%            for coefficients or linear estimates. Dimensions match those of
-%            'Coefficient' or 'Estimate'.
-%
-%        o CI_upper
-%            Matrix of upper bounds of the (1 - ALPHA) credibility intervals
-%            for coefficients or linear estimates. Dimensions match those of
-%            'Coefficient' or 'Estimate'.
-%
-%        o BF10
-%            Matrix of Bayes factors (BF10) for testing whether each regression
-%            coefficient or linear estimate equals zero, computed using the
-%            Savage–Dickey density ratio. Values may be reported as 0 or Inf
-%            when outside floating‑point range; lnBF10 remains finite and is
-%            the recommended evidential scale.
-%
-%        o lnBF10
-%            Matrix of natural logarithms of the Bayes factors (BF10). Positive
-%            values indicate evidence in favour of the alternative hypothesis,
-%            whereas negative values indicate evidence in favour of the null.
-%              lnBF10 < -1  is approx. BF10 < 0.3
-%              lnBF10 > +1  is approx. BF10 > 3.0
-%
-%        o prior
-%            Cell array describing the marginal inference-scale prior used for
-%            each coefficient/estimate in BF computation. Reported as
-%            't (mu, sigma, nu)' on the coefficient (or estimate) scale.
-%            For inference and Bayes factors, prior and posterior densities are
-%            evaluated using marginal Student‑t distributions with shared
-%            degrees of freedom (df_t), reflecting uncertainty in the residual
-%            variance under an empirical Bayes approximation. The intercept has
-%            a flat prior 'U (-Inf, Inf)' and BF is undefined (NaN).
-%
-%        o lambda
-%            Scalar ridge tuning constant selected by minimizing the .632
-%            bootstrap estimate of prediction error (then scaled by DEFF).
-%
-%        o Sigma_Y_hat
-%            Estimated residual covariance matrix of the outcomes, inflated by
-%            the design effect DEFF when applicable. For a univariate outcome,
-%            this reduces to the residual variance.
-%
-%        o df_lambda
-%            Effective residual degrees of freedom under ridge regression,
-%            defined as m minus the trace of the ridge hat matrix. Used for
-%            residual variance estimation (scale); does NOT include DEFF.
-%
-%        o tau2_hat
-%            Estimated prior covariance of the regression coefficients across
-%            outcomes, proportional to Sigma_Y_hat and inversely proportional
-%            to the ridge parameter lambda.
-%
-%        o Sigma_Beta
-%            Cell array of posterior covariance matrices of the regression
-%            coefficients. Each cell corresponds to one outcome and contains
-%            the covariance matrix for that outcome.
-%
-%        o nboot
-%            Number of bootstrap samples used to estimate the .632 bootstrap
-%            prediction error.
-%
-%        o Deff
-%            Design effect used to inflate the residual covariance and reduce
-%            inferential degrees of freedom to account for clustering.
-%
-%        o tol
-%            Numeric tolerance used in the golden-section search for optimizing
-%            the ridge tuning constant.
-%
-%        o expand
-%            Number of expansions of the initial search interval required to
-%            locate an interior minimum during ridge parameter optimization.
-%
-%        o iter
-%            Number of iterations performed by the golden-section search.
-%
-%        o R_table
-%            Cell array with a header row summarizing residual correlations
-%            (strictly lower-triangular pairs). The first row of R_table
-%            contains column labels; all subsequent rows contain numerical
-%            summaries for individual correlation pairs.
-%
-%            Credible intervals for correlation coefficients are computed via
-%            Fisher’s z-transform with effective degrees of freedom equal to
-%            m / DEFF - trace (H_lambda), where m is the total number of
-%            observations (see DETAIL below). Bayes factors use the Savage–
-%            Dickey ratio in Fisher‑z space with a Uniform (-1,1) prior on R
-%            (equivalently Logistic (0, 1/2) prior on z) and the same t-marginal
-%            posterior layer (df_t). Diagonal entries are undefined and not
-%            included.
+%      'S = bootridge (Y, X, ...)' returns a structure containing posterior 
+%      summaries, the optimized ridge parameter (lambda), residual 
+%      covariance (Sigma_Y_hat), and optimization diagnostics.
 %
 %      DETAIL: The model implements an empirical Bayes ridge regression that
-%      simultaneously addresses the problems of multicollinearity, multiple 
-%      comparisons, and clustered dependence. The sections below provide
-%      detail on the applications to which this model is well suited and the
-%      principles of its operation.
+%      simultaneously addresses multicollinearity, multiple comparisons, 
+%      and clustered dependence. 
+%
+%      ROBUSTNESS TO OUTLIERS (HUBER TUNING):
+%      While 'bootridge' assumes a Normal likelihood, it is numerically 
+%      stabilized against outliers. The ridge penalty prevents individual 
+%      coefficients from pivoting to accommodate high-leverage points [11]. 
+%      Crucially, lambda is optimized with .632 bootstrap to minimize prediction
+%      error based on mean Huber loss. The Huber loss function applies quadratic 
+%      penalties to small residuals but only linear penalties to large ones, 
+%      preventing outliers from distorting the tuning process. Because outliers 
+%      are stochastically excluded from out-of-bag (OOB) samples in the .632 
+%      bootstrap, any coefficient inflation caused by fitting local noise 
+%      results in a high OOB error. The optimization therefore converges on 
+%      a lambda value that reflects the stable covariance structure of the 
+%      data rather than the influence of individual outliers [1, 2]. In 
+%      multivariate settings, residual covariance is pooled across outcomes,
+%      which further reduces the influence of outcome‑specific extreme values
+%      on the inferred noise scale and Bayes factors.
 %
 %      REGULARIZATION AND MULTIPLE COMPARISONS: 
-%      Unlike classical frequentist methods (e.g., Bonferroni) that penalize 
-%      inference-stage decisions (p-values), `bootridge` penalizes the estimates 
-%      themselves via shrinkage. By pooling information across all predictors to 
-%      learn the global penalty (lambda), the model automatically adjusts its 
-%      skepticism to the design's complexity. This provides a principled 
-%      probabilistic alternative to family-wise error correction: noise-driven 
-%      effects are shrunken toward zero, while stable effects survive the 
-%      penalty. This "Partial Pooling" ensures that Bayes factors are 
-%      appropriately conservative without the catastrophic loss of power 
-%      associated with classical post-hoc adjustments [6, 7].
-%
-%      PREDICTIVE OPTIMIZATION:
-%      The ridge tuning constant is selected empirically by minimizing the .632 
-%      bootstrap estimate of prediction error [1, 2]. This aligns lambda with 
-%      minimum expected Kullback–Leibler predictive risk, ensuring the model is 
-%      optimized for generalizability (lower Mean Squared Error) rather than 
-%      mere in-sample fit [8–10]. This lambda in turn determines the scale of 
-%      the Normal ridge prior used to shrink slope coefficients toward zero [11].
+%      `bootridge` penalizes estimates via shrinkage rather than p-values. 
+%      By pooling information across predictors to learn the global penalty, 
+%      the model automatically adjusts skepticism to design complexity. 
+%      "Partial Pooling" ensures Bayes factors are appropriately 
+%      conservative without the significant reduction in statistical power 
+%      often associated with classical post-hoc adjustments [6, 7].
 %
 %      UNCERTAINTY AND CLUSTERING:
-%      The design effect specified by DEFF is integrated throughout the model
-%      consistent with its definition:
-%             DEFF(parameter) =  Var_true(parameter) / Var_iid(parameter)
-%      This guards against dependence between observations leading to anti-
-%      conservative inference. This adjustment occurs at three levels:
+%      The design effect (DEFF) is integrated at three levels:
+%      1. Prior Learning: lambda is selected on the i.i.d. scale and 
+%         divided by DEFF to "dilute" prior precision.
+%      2. Scale Estimation: Residual variance is inflated by DEFF.
+%      3. Inferential Shape: Inferential degrees of freedom are reduced 
+%         (df_t = m/DEFF - trace(H)) to calibrate the Student-t tails 
+%         for the effective sample size [12, 13].
 %
-%      1. Prior Learning: The ridge tuning constant (lambda) is selected by
-%         minimizing predictive error on the i.i.d. bootstrap scale and then 
-%         divided by DEFF. This "dilutes" the prior precision, ensuring the 
-%             lambda_iid   = sigma^2 / tau^2_iid
-%             tau^2_true   = DEFF * tau^2_iid
-%             lambda_true  = sigma^2 / tau^2_true = lambda_iid / DEFF
-%         where sigma^2 (a.k.a. Sigma_Y_hat) is residual variance (data space)
-%         and tau^2 (a.k.a. tau2_hat) is the prior variance (parameter space).
+%      DIAGNOSTIC ASSESSMENT:
+%      Users should utilize `bootlm` for formal diagnostic plots (Normal 
+%      Q-Q, Spread-Location, Cook’s Distance). These tools identify 
+%      influential observations that may require inspection before or 
+%      after ridge fitting.
 %
-%      2. Scale Estimation: Residual variance (Sigma_Y_hat) is estimated using
-%         the ridge-adjusted degrees of freedom (df_lambda = m - trace(H_lambda))
-%         and is then inflated by a factor of DEFF. This yields an "effective"
-%         noise scale on the derived parameter statistics that accounts for
-%         within-cluster correlation [12, 13] according to:
-%             Var_true(beta_hat) = DEFF * Var_iid(beta_hat)
-%
-%      3. Inferential Shape: A marginal Student’s t layer is used for all 
-%         quantiles and Bayes factors to account for uncertainty in the variance 
-%         estimate. To prevent over-certainty in small-cluster settings, the 
-%         inferential degrees of freedom are reduced: 
-%             df_t = (m / DEFF) - trace (H_lambda), where m is size (Y, 1)
-%         This ensures that both the scale (width) and the shape (tails) of the
-%         posterior distributions are calibrated for the effective sample size.
-%         The use of t‑based adjustments is akin to placing an Inverse-Gamma
-%         prior (alpha = df_t / 2, beta = Sigma_Y_hat) on the residual variance
-%         and is in line with classical variance component approximations (e.g.,
-%         Satterthwaite/Kenward–Roger) and ridge inference recommendations
-%         [12–14].
-%
-%      ESTIMATING THE DESIGN EFFECT:
-%      While DEFF = 1 + (g - 1) * r provides a useful analytical upper bound 
-%      based on cluster size (g) and intraclass correlation (r), the realized 
-%      impact of dependence on regression slopes often varies by predictor type. 
-%      For complex designs, DEFF is best estimated as the mean ratio of the 
-%      parameter variances—obtained from the variances of the bootstrap 
-%      distributions under a cluster-robust estimator (e.g., wild cluster 
-%      bootstrap via `bootwild` or cluster-based bayesian bootstrap via 
-%      `bootbayes`) relative to an i.i.d. assumption. Supplying this 
-%      "Effective DEFF" allows `bootridge` to provide analytical Bayesian 
-%      inference that approximates the results of a full hierarchical or 
-%      resampled model [17, 18].
-%
-%      BAYES FACTORS:
-%      For regression coefficients and linear estimates, priors and posteriors
-%      are evaluated using marginal t densities with shared df_t in the Savage–
-%      Dickey ratio at a point null of zero [3–5]. The 'Prior' column in the
-%      printed output reports these marginal inference-scale priors as
-%      't (mu, sigma, nu)'.
-%
-%      For residual correlations between outcomes, credible intervals are
-%      computed in closed form using Fisher’s z-transform with effective degrees
-%      of freedom df_t, symmetric intervals on the z-scale, and back-
-%      transformation [15]. Bayes factors for H0: rho = 0 use the exact change-
-%      of-variables prior induced by a flat prior on the correlation coefficient:
-%          rho ~ Uniform(-1, 1)  ==>  z = atanh(rho) ~ Logistic(0, 1/2),
-%      so the prior density at z = 0 equals 0.5. Posterior densities on z are
-%      t-marginal with df_t, providing a closed-form, non-arbitrary Savage–
-%      Dickey BF for residual correlations [3, 16].
-%
-%      SUMMARY OF PRIORS:
-%      The model employs the following priors for empirical Bayes inference:
-%        o Intercept: Flat/Uniform prior, U(-Inf, Inf).
-%        o Slopes: Marginal Student's t prior, t(0, sigma_prior, df_t), where 
-%          the scale is determined by the bootstrap-optimized lambda and DEFF.
-%        o Residual Variance: Implicit Inverse-Gamma prior, Inv-Gamma(df_t/2, 
-%          Sigma_Y_hat), marginalized to produce the t-layer.
-%        o Correlations: Flat/Uniform prior, U(-1, 1), on the correlation 
-%          coefficient scale.
-%
-%      SUITABILITY: 
-%      This function is designed for models with continuous outcomes and 
-%      assumes a linear Normal (Gaussian) likelihood. It is not suitable for 
-%      binary, count, or categorical outcomes. However, binary and categorical 
-%      predictors are supported. 
-%
-%      INTERNAL SCALING AND STANDARDIZATION: 
-%      All scaling and regularization procedures for optimizing the ridge
-%      parameter are handled internally to ensure numerical stability and
-%      balanced, scale-invariant shrinkage. To ensure all outcomes contribute 
-%      equally to the global regularization regardless of their units, the 
-%      ridge parameter (lambda) is optimized using internally standardized 
-%      outcomes. 
-%
-%      When refitting the model with the optimal ridge parameter, while 
-%      predictors are maintained on their original scale, the ridge penalty 
-%      matrix is automatically constructed with diagonal elements proportional 
-%      to the column variances of X. This ensures that the shrinkage applied 
-%      to coefficients is equivalent to that of standardized predictors, 
-%      without requiring manual preprocessing (categorical terms are identified 
-%      via CATEGOR and are exempt from this variance-based penalty scaling). 
-%      Following optimization, the final model is refit to the outcomes on 
-%      their original scale; consequently, all posterior summaries, 
-%      credibility intervals, and prior standard deviations are reported 
-%      directly on the original coefficient scale for ease of interpretation.
-%
-%      See also: `bootstrp`, `boot`, `bootlm`, `bootbayes` and `bootwild`.
+%      See also: `bootstrp`, `boot`, `bootlm`, `bootbayes`, `bootwild`.
 %
 %  Bibliography:
 %  [1] Delaney, N. J. & Chatterjee, S. (1986) Use of the Bootstrap and Cross-
@@ -509,7 +264,7 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
   % predictors regardless of scale.
   P = cat (2, 0, var (X(:,2:end), 0, 1));
 
-  % Evaluate categor input argument
+  % Evaluate categor input argument.
   if (~ isempty (categor))   
     % Set P(k) to 1 where the predictor term corresponds to a categorical
     % variable. Categorical variable coding is exempt from penalty scaling.
@@ -542,10 +297,17 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
     lambda0 = NaN;
   end
 
+  % Use the median absolute deviation of the residuals to set the sensitivity
+  % threshold subsequently used for the Huber loss function. The cutoff k is
+  % in residual units; default k = 1.345 corresponds to ~95% efficiency under
+  % errors from a standard normal distribution.
+  RS = YS - XS * bOLS;
+  ks = max (1.345 * median (abs (RS (:) - median (RS(:)))) / 0.6745, 1e-6);
+
   % Objective for lambda using .632 bootstrap prediction error
-  % Use YS so that variance in each outcome contributes equally to
-  % the estimate of prediction error.
-  obj_func = @(lambda) booterr632 (YS, X, lambda, P, nboot, seed);
+  % Standardizing outcomes (YS) ensures equal weight across multivariate 
+  % dimensions, while Huber loss (k) provides outlier resistance.
+  obj_func = @(lambda) booterr632 (YS, X, lambda, P, ks, nboot, seed);
 
   % Golden-section search for optimal lambda by .632 bootstrap prediction error
   smax = svds (X, 1);                    % returns the largest singular value
@@ -555,10 +317,14 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
   expand = 1;                            % one order of magnitude usually enough
   max_expand = 10;
   while (expand < max_expand )
-    a = max (amin, log10 (lambda0) - expand);   % set the lower bound
-    b = min (bmax, log10 (lambda0) + expand);   % set the upper bound
+    if (isfinite (lambda0))
+      a = max (amin, log10 (lambda0) - expand);   % set the lower bound
+      b = min (bmax, log10 (lambda0) + expand);   % set the upper bound
+    else
+      a = amin; b = bmax;
+    end
     [lambda, iter] = gss (obj_func, a, b, tol);
-    if ( all ( abs(log10(lambda) - [a, b]) > tol ) )
+    if ( all (abs (log10 (lambda) - [a, b]) > tol ) )
       break
     else
       expand = expand + 1;
@@ -592,9 +358,18 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
   end
   df_lambda = max (df_lambda, 1);
 
+  % Calculate the residuals for the ridge fit using the optimal lambda
+  resid = Y - X * Beta;                               % resid is m x q
+
+  % Huber-weighted residuals based on equivalent k for each outcome on their
+  % original scale.
+  %k = max (1.345 * median (abs (bsxfun (@minus, resid, ...
+  %                                      median (resid, 1))), 1) / 0.6745, 1e-6);
+  %[mean_loss, weights] = mean_huber_loss (resid, k);  % weights is m x q
+  %resid_w = resid .* weights;
+  
   % Residual (co)variance (q x q) scaled by the design effect (Deff) to
   % propagate to all subsequent calculations of the prior and posterior.
-  resid = Y - X * Beta;
   Sigma_Y_hat = deff * (resid' * resid) / df_lambda;
 
   % Prior (co)variance (matrix for q > 1)
@@ -788,7 +563,7 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
   % Display summary
   if (nargout == 0)
     fprintf (cat (2, '\n Empirical Bayes Ridge Regression (.632 Bootstrap',...
-                     ' Tuning) – Summary\n ******************************', ...
+                     ' Tuning) - Summary\n ******************************', ...
                      '*************************************************\n'));
     fprintf ('\n Bootstrap optimized ridge tuning constant (lambda): %.6g\n', ...
              lambda);
@@ -852,7 +627,7 @@ end
 
 %% FUNCTION FOR .632 BOOTSTRAP ESTIMATOR OF PREDICTION ERROR
 
-function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
+function PRED_ERR = booterr632 (Y, X, lambda, P, k, nboot, seed)
 
   % Efron and Tibshirani (1993) An Introduction to the Bootstrap. New York, NY:
   %  Chapman & Hall. pg 247-252
@@ -862,21 +637,54 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
 
   % The following bootstrap approach uses bootknife resampling to avoid empty
   % OOB samples. Resampling is also balanced to reduce Monte Carlo error.
-  [BOOTSTAT, jnk, jnk, BOOTOOB] = bootstrp (nboot, ridge, Y, X, 'match', true, ...
-                                           'loo', true, 'seed', seed);
+  [BOOTSTAT, jnk, jnk, BOOTOOB] = bootstrp (nboot, ridge, Y, X, 'match', ...
+                                            true, 'loo', true, 'seed', seed);
 
   % Calculate the number of outcomes (q > 1 for multivariate)
   q = size (Y, 2);
 
   % Simple bootstrap estimate of error (S_ERR)
   % (S_ERR is equivalent to MSEP in Delaney and Chatterjee, 1986)
-  S_ERR = mean (arrayfun(@(b) ...
-          mean (sum ((Y(BOOTOOB{b}, :) - X(BOOTOOB{b}, :) * ...
-                reshape (BOOTSTAT(b, :), [], q)).^2, 2)), 1:nboot));
+  S_ERR = mean (arrayfun (@(b) ...
+          mean_huber_loss (Y(BOOTOOB{b}, :) - X(BOOTOOB{b}, :) * ...
+                           reshape (BOOTSTAT(b, :), [], q), k), 1:nboot));
 
-  A_ERR = mean (sum ((Y - X * ridge (Y, X)).^2, 2));
-  OPTIM = 0.632 * (S_ERR - A_ERR);
+  % Apparent error in resamples (A_ERR)
+  A_ERR = mean_huber_loss (Y - X * ridge (Y, X), k);
+
+  % Optimism in apparent error
+  OPTIM = .632 * (S_ERR - A_ERR);
+
+  % The bootstrap .632 estimator of prediction error
   PRED_ERR = A_ERR + OPTIM;
+
+end
+
+%--------------------------------------------------------------------------
+
+%% FUNCTION FOR MEAN HUBER LOSS (ROBUST PREDICTION ERROR CRITERION)
+
+function [mean_loss, weights] = mean_huber_loss (resid, k)
+
+  % If k is not provided, set scalar k for the standardized scale (SD = 1)
+  % k must be size 1 x q
+  if (nargin < 2); k = 1.345; end;
+
+  % is_small will be m x q, comparing each resid to its specific k
+  abs_resid = abs (resid);
+  is_small = abs_resid <= k;
+
+  % Calculate loss matrix
+  loss = is_small .* (0.5 * resid.^2) + ...
+        ~is_small .* bsxfun (@minus, bsxfun (@times, k, abs_resid), 0.5 * k.^2);
+
+  % Total error is the mean of all elements
+  mean_loss = mean (loss(:));
+
+  % Return Huber weights (m x q)
+  if (nargout > 1)
+    weights = is_small + ~is_small .* bsxfun (@rdivide, k, abs_resid + eps);
+  end
 
 end
 

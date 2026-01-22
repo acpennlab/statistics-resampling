@@ -852,8 +852,8 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
   % (S_ERR is equivalent to MSEP in Delaney and Chatterjee, 1986)
   mse = @(r) sum (r(:).^2);
   S_ERR = sum (arrayfun (@(b) ...
-               mse (Y(BOOTOOB{b}, :) - X(BOOTOOB{b}, :) * ...
-               reshape (BOOTSTAT(b, :), [], q)), 1:nboot)) / nboot;
+                 mse (Y(BOOTOOB{b}, :) - X(BOOTOOB{b}, :) * ...
+                      reshape (BOOTSTAT(b, :), [], q)), 1:nboot)) / nboot;
 
   % Apparent error in resamples (A_ERR)
   A_ERR = mse (Y - X * ridge (Y, X));

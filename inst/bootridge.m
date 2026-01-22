@@ -12,13 +12,13 @@
 %      'bootridge (Y, X)' fits an empirical Bayes ridge regression model using
 %      a linear Normal (Gaussian) likelihood with an empirical Bayes normal
 %      ridge prior on the regression coefficients. The ridge tuning constant
-%      (lambda) is selected by minimizing the .632 bootstrap estimate of
-%      prediction error [1, 2]. Y is an m-by-q matrix of outcomes and X is an
-%      m-by-n design matrix whose first column must correspond to an intercept
-%      term. If an intercept term (a column of ones) is not found in the first
-%      column of X, one is added automatically. If any rows of X or Y contain
-%      missing values (NaN) or infinite values (+/- Inf), the corresponding
-%      observations are omitted before fitting.
+%      (lambda) is selected empirically to minimize prediction error [1, 2].
+%      Y is an m-by-q matrix of outcomes and X is an m-by-n design matrix whose
+%      first column must correspond to an intercept term. If an intercept term 
+%      (a column of ones) is not found in the first column of X, one is added
+%      automatically. If any rows of X or Y contain missing values (NaN) or
+%      infinite values (+/- Inf), the corresponding observations are omitted
+%      before fitting.
 %
 %      For each outcome, the function prints posterior summaries for regression
 %      coefficients or linear estimates, including posterior means, equal-tailed
@@ -153,13 +153,9 @@
 %
 %        o prior
 %            Cell array describing the marginal inference-scale prior used for
-%            each coefficient/estimate in BF computation. Reported as
-%            't (mu, sigma, nu)' on the coefficient (or estimate) scale.
-%            For inference and Bayes factors, prior and posterior densities are
-%            evaluated using marginal Student‑t distributions with shared
-%            degrees of freedom (df_t), reflecting uncertainty in the residual
-%            variance under an empirical Bayes approximation. The intercept has
-%            a flat prior 'U (-Inf, Inf)' and BF is undefined (NaN).
+%            each coefficient or estimate in Bayes factor computation.
+%            Reported as 't (mu, sigma, df_t)' on the coefficient (or estimate)
+%            scale; see CONDITIONAL VS MARGINAL PRIORS for details.
 %
 %        o lambda
 %            Scalar ridge tuning constant selected by minimizing the .632
@@ -206,14 +202,11 @@
 %            contains column labels; all subsequent rows contain numerical
 %            summaries for individual correlation pairs.
 %
-%            Credible intervals for correlation coefficients are computed via
-%            Fisher’s z-transform with effective degrees of freedom equal to
-%            m / DEFF - trace (H_lambda), where m is the total number of
-%            observations (see DETAIL below). Bayes factors use the Savage–
-%            Dickey ratio in Fisher‑z space with a Uniform (-1,1) prior on R
-%            (equivalently Logistic (0, 1/2) prior on z) and the same t-marginal
-%            posterior layer (df_t). Diagonal entries are undefined and not
-%            included.
+%            Credible intervals and Bayes factors for correlations are
+%            computed using Fisher’s z-transform under the same marginal
+%            inferential framework used for coefficients (df_t). See
+%            CONDITIONAL VS MARGINAL PRIORS and DETAIL below. Diagonal
+%            entries are undefined and not included.
 %
 %      DETAIL: The model implements an empirical Bayes ridge regression that
 %      simultaneously addresses the problems of multicollinearity, multiple 
@@ -242,6 +235,55 @@
 %      This lambda in turn determines the scale of the Normal ridge prior used
 %      to shrink slope coefficients toward zero [11].
 %
+%      CONDITIONAL VS MARGINAL PRIORS:
+%      The ridge penalty (lambda) corresponds to a Normal prior on the
+%      regression coefficients CONDITIONAL on the residual variance:
+%          Beta | sigma^2 ~ Normal(0, tau^2 * sigma^2),
+%      where tau^2 is determined by lambda. This conditional Normal prior
+%      fully defines the ridge objective function and is held fixed during
+%      lambda optimisation (prediction-error minimisation).
+%
+%      For inference, however, uncertainty in the residual variance is
+%      explicitly acknowledged. Integrating over variance uncertainty under
+%      an empirical‑Bayes approximation induces a marginal Student’s t
+%      distribution for coefficients and linear estimates, which is used
+%      for credible intervals and Bayes factors.
+%
+%      BAYES FACTORS:
+%      For regression coefficients and linear estimates, Bayes factors are
+%      computed using the Savage–Dickey density ratio evaluated on the
+%      marginal inference scale. Prior and posterior densities are Student’s
+%      t distributions with shared degrees of freedom (df_t), reflecting
+%      uncertainty in the residual variance under an empirical‑Bayes
+%      approximation [3–5].
+%
+%      For residual correlations between outcomes, credible intervals are
+%      computed in closed form using Fisher’s z-transform with effective degrees
+%      of freedom df_t, symmetric intervals on the z-scale, and back-
+%      transformation [15]. Bayes factors for H0: rho = 0 use the exact change-
+%      of-variables prior induced by a flat prior on the correlation coefficient:
+%          rho ~ Uniform(-1, 1)  ==>  z = atanh(rho) ~ Logistic(0, 1/2),
+%      so the prior density at z = 0 equals 0.5. Posterior densities on z are
+%      t-marginal with df_t, providing a closed-form, non-arbitrary Savage–
+%      Dickey BF for residual correlations [3, 16].
+%
+%      SUMMARY OF PRIORS:
+%      The model employs the following priors for empirical Bayes inference:
+%
+%        o Intercept: Flat/Uniform prior, U(-Inf, Inf).
+%
+%        o Slopes: Marginal Student’s t prior on the coefficient (or estimate)
+%          scale, t(0, sigma_prior, df_t), with scale determined by the
+%          bootstrap‑optimised ridge parameter (lambda) and design effect
+%          DEFF.
+%
+%        o Residual Variance: Implicit (working) Inverse-Gamma prior,
+%          Inv-Gamma(df_t/2, Sigma_Y_hat), induced by variance estimation
+%          and marginalization and used to generate the t-layer.
+%
+%        o Correlations: Flat/Uniform prior, U(-1, 1), on the correlation 
+%          coefficient scale.
+%
 %      UNCERTAINTY AND CLUSTERING:
 %      The design effect specified by DEFF is integrated throughout the model
 %      consistent with its definition:
@@ -265,10 +307,11 @@
 %         within-cluster correlation [12, 13] according to:
 %             Var_true(beta_hat) = DEFF * Var_iid(beta_hat)
 %
-%      3. Inferential Shape: A marginal Student’s t layer is used for all 
-%         quantiles and Bayes factors to account for uncertainty in the variance 
-%         estimate. To prevent over-certainty in small-cluster settings, the 
-%         inferential degrees of freedom are reduced: 
+%      3. Inferential Shape: A marginal Student’s t layer is used for all
+%         quantiles and Bayes factors to propagate uncertainty in the
+%         residual variance and effective sample size. To prevent over-
+%         certainty in small-cluster settings, the inferential degrees of
+%         freedom are reduced: 
 %             df_t = (m / DEFF) - trace (H_lambda), where m is size (Y, 1)
 %         This ensures that both the scale (width) and the shape (tails) of the
 %         posterior distributions are calibrated for the effective sample size.
@@ -290,33 +333,6 @@
 %      "Effective DEFF" allows `bootridge` to provide analytical Bayesian 
 %      inference that approximates the results of a full hierarchical or 
 %      resampled model [17, 18].
-%
-%      BAYES FACTORS:
-%      For regression coefficients and linear estimates, priors and posteriors
-%      are evaluated using marginal t densities with shared df_t in the Savage–
-%      Dickey ratio at a point null of zero [3–5]. The 'Prior' column in the
-%      printed output reports these marginal inference-scale priors as
-%      't (mu, sigma, nu)'.
-%
-%      For residual correlations between outcomes, credible intervals are
-%      computed in closed form using Fisher’s z-transform with effective degrees
-%      of freedom df_t, symmetric intervals on the z-scale, and back-
-%      transformation [15]. Bayes factors for H0: rho = 0 use the exact change-
-%      of-variables prior induced by a flat prior on the correlation coefficient:
-%          rho ~ Uniform(-1, 1)  ==>  z = atanh(rho) ~ Logistic(0, 1/2),
-%      so the prior density at z = 0 equals 0.5. Posterior densities on z are
-%      t-marginal with df_t, providing a closed-form, non-arbitrary Savage–
-%      Dickey BF for residual correlations [3, 16].
-%
-%      SUMMARY OF PRIORS:
-%      The model employs the following priors for empirical Bayes inference:
-%        o Intercept: Flat/Uniform prior, U(-Inf, Inf).
-%        o Slopes: Marginal Student's t prior, t(0, sigma_prior, df_t), where 
-%          the scale is determined by the bootstrap-optimized lambda and DEFF.
-%        o Residual Variance: Implicit Inverse-Gamma prior, Inv-Gamma(df_t/2, 
-%          Sigma_Y_hat), marginalized to produce the t-layer.
-%        o Correlations: Flat/Uniform prior, U(-1, 1), on the correlation 
-%          coefficient scale.
 %
 %      DIAGNOSTIC ASSESSMENT:
 %      Users should utilize `bootlm` for formal diagnostic plots (Normal 
@@ -618,9 +634,12 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
   %distpdf = @(z, mu, v, df) exp (-0.5 * ((z - mu).^2) ./ v) ./ sqrt (2 * pi * v);
   
   % Set critical value for credibility intervals
-  %critval = stdnorminv (1 - alpha / 2);   % Use Normal z distribution
+  % Effective inferential degrees of freedom for marginal (variance‑integrated)
+  % inference; this does NOT affect ridge optimisation, only uncertainty and
+  % Bayes factors.
   df_t = m / deff - trace (A \ (X' * X));  % Use Student's t distribution
   critval = distinv (1 - alpha / 2, df_t);
+  %critval = stdnorminv (1 - alpha / 2);   % Use Normal z distribution
 
   % Calculation of credibility intervals
   if (c < 1)

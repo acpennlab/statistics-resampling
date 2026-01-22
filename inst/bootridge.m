@@ -774,7 +774,7 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
              lambda);
     fprintf ('\n Effective residual degrees of freedom: %.3f\n', df_lambda);
     fprintf ('\n Number of outcomes (q): %d\n', q);
-    fprintf ('\n Design effect (Deff): %.2g\n', deff);
+    fprintf ('\n Design effect (Deff): %.3g\n', deff);
     if (q > 1)
       fprintf ('\n Residual covariance (sigma^2):\n'); disp (Sigma_Y_hat);
     else

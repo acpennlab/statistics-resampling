@@ -580,7 +580,7 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
   smax = svds (X, 1);                    % returns the largest singular value
   amin = log10 (smax^2 * eps);           % minimum a for well-conditioned system
   bmax = log10 (smax^2);                 % maximum b for well-conditioned system
-  tol = 0.1;
+  tol = 0.001;
   [lambda, iter] = gss (obj_func, amin, bmax, tol);
   pred_err = obj_func (lambda);
 

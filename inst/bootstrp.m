@@ -52,8 +52,8 @@
 %        o 'UseParallel': If true, use parallel processes to accelerate
 %                         bootstrap computations on multicore machines. 
 %                         Default is false for serial computation. In MATLAB,
-%                         the default is true if a parallel pool
-%                         has already been started. 
+%                         the default is true if a parallel pool has already
+%                         been started. 
 %        o 'nproc':       nproc sets the number of parallel processes (optional)
 %
 %     'BOOTSTAT = bootstrp (..., D, 'Weights', WEIGHTS)' sets the resampling
@@ -214,12 +214,6 @@ function [bootstat, bootsam, stats, bootoob] = bootstrp (argin1, argin2, varargi
   if (paropt.UseParallel)
     if (isfield (paropt, 'nproc'))
       ncpus = paropt.nproc;
-    else
-      if (ISOCTAVE)
-        ncpus = inf;
-      else
-        ncpus = [];
-      end
     end
   else
     ncpus = 0;

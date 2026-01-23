@@ -198,6 +198,9 @@
 %        o iter
 %            Number of iterations performed by the golden-section search.
 %
+%        o pred_err
+%            The minimized prediction error calculated using the optimal lambda.
+%
 %        o R_table
 %            Cell array with a header row summarizing residual correlations
 %            (strictly lower-triangular pairs). The first row of R_table
@@ -579,6 +582,7 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
   bmax = log10 (smax^2);                 % maximum b for well-conditioned system
   tol = 0.1;
   [lambda, iter] = gss (obj_func, amin, bmax, tol);
+  pred_err = obj_func (lambda);
 
   % Heuristic correction to lambda (prior precision) for the design effect.
   % Empirical-Bayes ridge learns lambda as an inverted estimator-scale SNR:
@@ -802,6 +806,7 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
   S.Deff = deff;
   S.tol = tol;
   S.iter = iter;
+  S.pred_err = pred_err;
   if (q > 1); S.R_table = R_table; end
 
   % Display summary

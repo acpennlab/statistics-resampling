@@ -7,7 +7,9 @@
 % -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA)
 % -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L)
 % -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF)
-% -- Function File: S = bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED)
+% -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED)
+% -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED, TOL)
+% -- Function File: S = bootridge (Y, X, ...)
 %
 %      'bootridge (Y, X)' fits an empirical Bayes ridge regression model using
 %      a linear Normal (Gaussian) likelihood with an empirical Bayes normal
@@ -73,10 +75,15 @@
 %      orthogonal.
 %
 %      'bootridge (Y, X, CATEGOR, NBOOT)' sets the number of bootstrap samples
-%      used to estimate the .632 bootstrap prediction error. The bootstrap has
+%      used to estimate the .632 bootstrap prediction error. The bootstrap* has
 %      first order balance to improve the efficiency for variance estimation,
 %      and utilizes bootknife (leave-one-out) resampling to guarantee
-%      observations in the out-of-bag samples. The default value of NBOOT is 100.
+%      observations in the out-of-bag samples. The default value of NBOOT is
+%      100, but more resamples are recommended to reduce monte carlo error.
+%
+%      * If the parallel computing toolbox (Matlab) or package (Octave) is
+%      installed and loaded, then these computations will be automatically
+%      accelerated by parallel processing on platforms with multiple processors.
 %
 %      The bootstrap tuning of the ridge parameter relies on resampling
 %      functionality provided by the statistics-resampling package. In
@@ -110,7 +117,14 @@
 %
 %      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED)' initialises the
 %      Mersenne Twister random number generator using an integer SEED value so
-%      that bootstrap results are reproducible.
+%      that bootstrap results are reproducible, which improves convergence.
+%      Monte carlo error of the results can be assessed by repeating the
+%      analysis multiple times, each time with a different random seed.
+%
+%      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED, TOL)' sets the
+%      difference in log10(lambda) when optimization will break from iterative
+%      minimization of the prediction error. The default is 0.005, corresponding
+%      to approximately 1% change in lambda.
 %
 %      'S = bootridge (Y, X, ...)' returns a structure containing posterior
 %      summaries including posterior means, credibility intervals, Bayes factors,
@@ -437,11 +451,16 @@
 %  Author: Andrew Charles Penn
 
 
-function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
+function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
 
   % Check the number of input arguments provided
   if (nargin < 2)
     error (cat (2, 'bootridge: At least 2 input arguments, Y and X, required.'));
+  end
+  
+  % Check the number of input arguments provided
+  if (nargin > 9)
+    error (cat (2, 'bootridge: Too many input arguments.'));
   end
 
   % Check that X and Y have the same number of rows
@@ -499,7 +518,8 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
   if ( (nargin < 5)|| isempty (alpha) )
     alpha = .05;
   else
-    if ( any (alpha <= 0) || any (alpha >= 1) || (numel (alpha) > 1) )
+    if ( ~isnumeric (alpha) || any (alpha <= 0) || any (alpha >= 1) || ...
+         (numel (alpha) > 1) )
       error ('bootridge: Value of alpha must be between 0 and 1');
     end
   end
@@ -539,9 +559,43 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
     end
   end
 
+  % If tol is not specified, set it to .01.
+  if ( (nargin < 9)|| isempty (tol) )
+    tol = 0.005;  % ~1% change in lambda
+  else
+    if ( ~isnumeric (tol) || isinf (tol) || isnan (tol) || (numel (tol) > 1))
+      error ('bootridge: The tolerance must be a number');
+    end
+    tol = abs (tol);
+  end
+
   % Check the number of output arguments requested
   if (nargout > 1)
     error ('bootridge: Only 1 output argument can be requested.');
+  end
+
+  % Check if running in Octave (else assume Matlab)
+  info = ver; 
+  ISOCTAVE = any (ismember ({info.Name}, 'Octave'));
+
+  % Check if we have parallel processing capabilities
+  paropt = struct;
+  paropt.UseParallel = false; % Default
+  if (ISOCTAVE)
+    software = pkg ('list');
+    names = cellfun (@(S) S.name, software, 'UniformOutput', false);
+    status = cellfun (@(S) S.loaded, software, 'UniformOutput', false);
+    index = find (~ cellfun (@isempty, regexpi (names, '^parallel')));
+    if ( (~ isempty (index)) && (logical (status{index})) )
+      paropt.UseParallel = true;
+    end
+  else
+    try 
+      pool = gcp ('nocreate'); 
+      paropt.UseParallel = ~ isempty (pool);
+    catch
+      % Do nothing
+    end
   end
 
   % Create the penalty matrix - ridge regression will shrink all but intercept.
@@ -574,13 +628,12 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
   % Objective for lambda using .632 bootstrap prediction error.
   % Standardizing outcomes (YS) ensures equal weight across multivariate 
   % dimensions
-  obj_func = @(lambda) booterr632 (YS, X, lambda, P, nboot, seed);
+  obj_func = @(lambda) booterr632 (YS, X, lambda, P, nboot, seed, paropt);
 
   % Golden-section search for optimal lambda by .632 bootstrap prediction error
   smax = svds (X, 1);                    % returns the largest singular value
   amin = log10 (smax^2 * eps);           % minimum a for well-conditioned system
   bmax = log10 (smax^2);                 % maximum b for well-conditioned system
-  tol = 0.001;
   [lambda, iter] = gss (obj_func, amin, bmax, tol);
   pred_err = obj_func (lambda);
 
@@ -876,7 +929,7 @@ end
 
 %% FUNCTION FOR .632 BOOTSTRAP ESTIMATOR OF PREDICTION ERROR
 
-function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
+function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed, paropt)
 
   % Efron and Tibshirani (1993) An Introduction to the Bootstrap. New York, NY:
   %  Chapman & Hall. pg 247-252
@@ -886,15 +939,16 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
 
   % The following bootstrap approach uses bootknife resampling to avoid empty
   % OOB samples. Resampling is also balanced to reduce Monte Carlo error.
-  [BOOTSTAT, jnk, jnk, BOOTOOB] = bootstrp (nboot, ridge, Y, X, 'match', ...
-                                            true, 'loo', true, 'seed', seed);
+  [BOOTSTAT, jnk, jnk, BOOTOOB] = bootstrp (nboot, ridge, Y, X, 'loo', true,  ...
+                                            'match', true, 'seed', seed, ...
+                                            'Options', paropt);
 
   % Calculate the number of outcomes (q > 1 for multivariate)
   q = size (Y, 2);
 
   % Simple bootstrap estimate of error (S_ERR)
   % (S_ERR is equivalent to MSEP in Delaney and Chatterjee, 1986)
-  mse = @(r) sum (r(:).^2);
+  mse = @(r) mean (r(:).^2);
   S_ERR = sum (arrayfun (@(b) ...
                  mse (Y(BOOTOOB{b}, :) - X(BOOTOOB{b}, :) * ...
                       reshape (BOOTSTAT(b, :), [], q)), 1:nboot)) / nboot;
@@ -919,17 +973,17 @@ function [lambda, iter] = gss (f, a, b, tol)
   % Algorithm based on https://en.wikipedia.org/wiki/Golden-section_search
   invphi = (sqrt (5) - 1) / 2;
   iter = 0;
-  while ((b - a) > tol )
+  while ((b - a) > tol)
     c = b - (b - a) * invphi;
     d = a + (b - a) * invphi;
-    if f(10.^c) < f(10.^d)
+    if f(10^c) < f(10^d)
       b = d;
     else
       a = c;
     end
     iter = iter + 1;
   end
-  lambda = 10.^((b + a)/2);
+  lambda = 10^((b + a)/2);
 
 end
 

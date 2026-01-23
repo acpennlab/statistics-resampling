@@ -762,7 +762,42 @@ try
   pval5 = randtest2 (X, Y, false, [], [], 1);
   pval6 = randtest2 (X, Y, false, [], @(X, Y) mean (X) - mean (Y), 1);
   pval7 = randtest2 (X, Y, false, [], @(A, B) log (var (A) ./ var (B)), 1);
- 
+
+  % bootridge:test:1
+  m = 30;
+  x = linspace (-1, 1, m).';
+  X = x;
+  randn ('twister', 123);
+  y = 1.0 + 0.8 * x + 0.1 * randn (m,1);
+  S = bootridge (y, X, [], 200, 0.05, [], 1.1, 777);
+  % bootridge:test:2
+  m = 28;
+  x = linspace (-1.5, 1.5, m).';
+  X = [ones(m,1), x];
+  randn ('twister', 123);
+  y = 3.0 + 0.4 * x + 0.15 * randn (m,1);
+  L = [0; 1];
+  S = bootridge (y, X, [], 100, 0.10, L, 1, 99);
+  % bootridge:test:3
+  m = 36;
+  g = repmat ([ -0.5; 0.5 ], 18, 1);
+  x = linspace (-2, 2, m).';
+  X = [ones(m,1), g, x];
+  beta = [1.0; 0.7; -0.2];
+  randn ('twister', 123);
+  y = X * beta + 0.25 * randn (m, 1);
+  categor = 2;
+  S = bootridge (y, X, categor, 100, 0.05, [], 1, 2024);
+  % bootridge:test:4
+  m = 32;
+  x = linspace (-1, 1, m).';
+  X = [ones(m,1), x];
+  B = [2.0, -1.0; 0.5, 0.8];
+  randn ('twister', 123);
+  Y = X * B + 0.2 * randn (m, 2);
+  S1 = bootridge (Y, X, [], 100, 0.10, [], 1, 42);
+  S2 = bootridge (Y, X, [], 100, 0.10, [], 2, 42);
+
   % credint:test:1
   heights = [183, 192, 182, 183, 177, 185, 188, 188, 182, 185].';
   [stats, bootstat] = bootbayes (heights);
@@ -781,6 +816,51 @@ try
   CI_2 = bootint (bootstat,[0.025,0.975]);    % 95% percentile interval
   CI_3 = bootint (bootstat,0.95,r);           % 95% bias-corrected interval
   CI_4 = bootint (bootstat,[0.025,0.975],r);  % 95% bias-corrected interval
+
+  % bootclust:test:1
+  % Test for errors when using different functionalities of bootclust
+  y = randn (20,1); 
+  clustid = [1;1;1;1;1;1;1;1;1;1;2;2;2;2;2;3;3;3;3;3];
+  stats = bootclust (y, 1999, @mean);
+  stats = bootclust (y, 1999, 'mean');
+  stats = bootclust (y, 1999, {@var,1});
+  stats = bootclust (y, 1999, {'var',1});
+  stats = bootclust (y, 1999, @mean, [], 4);
+  stats = bootclust (y, 1999, @mean, [], clustid);
+  stats = bootclust (y, 1999, {'var',1}, [], clustid);
+  stats = bootclust (y, 1999, {'var',1}, [], clustid, true);
+  stats = bootclust (y, 1999, {@var,1}, [], clustid, true, 1);
+  stats = bootclust (y, 1999, @mean, .1, clustid, true);
+  stats = bootclust (y, 1999, @mean, .1, clustid, true, 1);
+  stats = bootclust (y, 1999, @mean, [.05,.95], clustid, true);
+  stats = bootclust (y, 1999, @mean, [.05,.95], clustid, true, 1);
+  stats = bootclust (y(1:5), 1999, @mean, .1);
+  stats = bootclust (y(1:5), 1999, @mean, [.05,.95]);
+  Y = randn (20); 
+  clustid = [1;1;1;1;1;1;1;1;1;1;2;2;2;2;2;3;3;3;3;3];
+  stats = bootclust (Y, 1999, @mean);
+  stats = bootclust (Y, 1999, 'mean');
+  stats = bootclust (Y, 1999, {@var, 1});
+  stats = bootclust (Y, 1999, {'var',1});
+  stats = bootclust (Y, 1999, @mean, [], clustid);
+  stats = bootclust (Y, 1999, {'var',1}, [], clustid);
+  stats = bootclust (Y, 1999, {@var,1}, [], clustid, true);
+  stats = bootclust (Y, 1999, {@var,1}, [], clustid, true, 1);
+  stats = bootclust (Y, 1999, @mean, .1, clustid, true);
+  stats = bootclust (Y, 1999, @mean, .1, clustid, true, 1);
+  stats = bootclust (Y, 1999, @mean, [.05,.95], clustid, true);
+  stats = bootclust (Y, 1999, @mean, [.05,.95], clustid, true, 1);
+  stats = bootclust (Y(1:5,:), 1999, @mean, .1);
+  stats = bootclust (Y(1:5,:), 1999, @mean, [.05,.95]);
+  y = randn (20,1); x = randn (20,1); X = [ones(20,1), x];
+  stats = bootclust ({x,y}, 1999, @cor);
+  stats = bootclust ({x,y}, 1999, @cor, [], clustid);
+  stats = bootclust ({x,y}, 1999, @mldivide);
+  stats = bootclust ({X,y}, 1999, @mldivide);
+  stats = bootclust ({X,y}, 1999, @mldivide, [], clustid);
+  stats = bootclust ({X,y}, 1999, @mldivide, [], clustid, true);
+  stats = bootclust ({X,y}, 1999, @mldivide, [], clustid, true, 1);
+  stats = bootclust ({X,y}, 1999, @mldivide, [.05,.95], clustid);
 
   % sampszcalc:test:1
   ns = sampszcalc ('t', 0.20, 0.80, 0.05, 2);
@@ -840,7 +920,7 @@ try
   N = sampszcalc ('t2', STATS_STD.estimate, 0.80, 0.05, 2);
   DEFF = deffcalc (BOOTSTAT, BOOTSTAT_SRS);
   N_corrected = sampszcalc ('t2', STATS_STD.estimate, 0.80, 0.05, 2, DEFF);
-  
+
   fprintf('Tests completed successfully.\n')
 
 catch

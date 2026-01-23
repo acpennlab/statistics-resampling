@@ -767,14 +767,14 @@ try
   m = 30;
   x = linspace (-1, 1, m).';
   X = x;
-  randn ('twister', 123);
+  randn (123);
   y = 1.0 + 0.8 * x + 0.1 * randn (m,1);
   S = bootridge (y, X, [], 200, 0.05, [], 1.1, 777);
   % bootridge:test:2
   m = 28;
   x = linspace (-1.5, 1.5, m).';
   X = [ones(m,1), x];
-  randn ('twister', 123);
+  rng('default');
   y = 3.0 + 0.4 * x + 0.15 * randn (m,1);
   L = [0; 1];
   S = bootridge (y, X, [], 100, 0.10, L, 1, 99);
@@ -784,7 +784,7 @@ try
   x = linspace (-2, 2, m).';
   X = [ones(m,1), g, x];
   beta = [1.0; 0.7; -0.2];
-  randn ('twister', 123);
+  rng('default');
   y = X * beta + 0.25 * randn (m, 1);
   categor = 2;
   S = bootridge (y, X, categor, 100, 0.05, [], 1, 2024);
@@ -793,7 +793,7 @@ try
   x = linspace (-1, 1, m).';
   X = [ones(m,1), x];
   B = [2.0, -1.0; 0.5, 0.8];
-  randn ('twister', 123);
+  rng('default');
   Y = X * B + 0.2 * randn (m, 2);
   S1 = bootridge (Y, X, [], 100, 0.10, [], 1, 42);
   S2 = bootridge (Y, X, [], 100, 0.10, [], 2, 42);

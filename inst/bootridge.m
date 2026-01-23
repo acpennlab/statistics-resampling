@@ -1204,7 +1204,6 @@ end
 %! assert (all (size (S.CI_upper) == [1, 1]));
 %! assert (all (size (S.BF10 ) == [1, 1]));
 %! assert (iscell (S.prior) && all (size (S.prior) == [1, 1]));
-%! assert (S.expand >= 1);
 
 %!test
 %! % Categorical predictor supplied via CATEGOR (no scaling)

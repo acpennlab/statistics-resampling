@@ -1125,12 +1125,14 @@ end
 %! % of the contrasts we are interested in
 %! Var_true = var (BOOTSTAT, 0, 2);
 %! Var_iid  = var (BOOTSTAT_SRS, 0, 2);
-%! DEFF = mean (Var_true ./ Var_iid)   % Alternatively we could take the maximum
+%! DEFF = mean (Var_true ./ Var_iid);
+%! % Or more simply, we can use the deffcalc function, which does the same thing
+%! DEFF = mean (deffcalc (BOOTSTAT, BOOTSTAT_SRS)) 
 %! 
 %! % Fit a cluster-robust empirical Bayes model
 %! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L, DEFF);
 %!
-%! % Note: Using the empirical DEFF (3.54) instead of the upper-bound (4.0) 
+%! % Note: Using the empirical DEFF (~3.5) instead of the upper-bound (4.0) 
 %! % recovers inferential power, as seen by the higher Bayes Factor (lnBF10) 
 %! % and narrower credible intervals.
 

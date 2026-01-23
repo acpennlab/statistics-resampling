@@ -472,7 +472,7 @@
 %
 %     * If the parallel computing toolbox (Matlab) or package (Octave) is
 %       installed and loaded, then these computations will be automatically
-%       accelerated by parallel processing on platforms with multiple processors
+%       accelerated by parallel processing on platforms with multiple processors.
 %
 %     '[STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (...)' also returns
 %     a structure containing the design matrix of the predictors (X), the

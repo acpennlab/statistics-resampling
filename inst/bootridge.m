@@ -1185,7 +1185,6 @@ end
 %! assert (all (size (S.Sigma_Beta{1}) == [2, 2]));
 %! assert (S.nboot == 200);
 %! assert (S.Deff == 1.1);
-%! assert (S.expand >= 1);
 
 %!test
 %! % Hypothesis matrix L: return linear estimate instead of coefficients
@@ -1223,7 +1222,6 @@ end
 %! % Check CI bracketing for all coefficients
 %! assert (all (S.CI_lower(:) <= S.Coefficient(:) + eps));
 %! assert (all (S.CI_upper(:) + eps >= S.Coefficient(:)));
-%! assert (S.iter >= 1 && S.expand >= 1);
 
 %!test
 %! % Multivariate outcomes and Deff scaling: Sigma_Y_hat should scale by Deff

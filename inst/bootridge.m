@@ -271,9 +271,9 @@
 %      For residual correlations between outcomes, credible intervals are
 %      computed in closed form using Fisher’s z-transform with effective degrees
 %      of freedom df_t, symmetric intervals on the z-scale, and back-
-%      transformation [15]. Bayes factors for H0: rho = 0 use the exact change-
+%      transformation [15]. Bayes factors for H0: r = 0 use the exact change-
 %      of-variables prior induced by a flat prior on the correlation coefficient:
-%          rho ~ Uniform(-1, 1)  ==>  z = atanh(rho) ~ Logistic(0, 1/2),
+%          r ~ Uniform (-1, 1)  ==>  z = atanh (r) ~ Logistic (0, 1/2),
 %      so the prior density at z = 0 equals 0.5. Posterior densities on z are
 %      t-marginal with df_t, providing a closed-form, non-arbitrary Savage–
 %      Dickey BF for residual correlations [3, 16].
@@ -298,8 +298,11 @@
 %          Inv-Gamma(df_t/2, Sigma_Y_hat), induced by variance estimation
 %          and marginalization and used to generate the t-layer.
 %
-%        o Correlations: Flat/Uniform prior, U(-1, 1), on the correlation 
-%          coefficient scale.
+%        o Correlations: Flat/Uniform prior, U(-1, 1), on the correlation
+%          coefficient scale. While non-informative for r, this induces a 
+%          weakly informative Logistic prior on the Fisher’s z scale. At the 
+%          point null (0), the prior density is 0.5, approximately equivalent 
+%          to a N(0, 0.8) prior.
 %
 %      UNCERTAINTY AND CLUSTERING:
 %      The design effect specified by DEFF is integrated throughout the model
@@ -777,7 +780,7 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed)
 
     % Assemble table-like cell array for correlations
     R_table = cat (1, ...
-     {'Correlation', 'R', 'CI_lower', 'CI_upper', 'BF10', 'lnBF10'}, ...
+     {'Correlation', 'r', 'CI_lower', 'CI_upper', 'BF10', 'lnBF10'}, ...
      [labels(:), num2cell([R(:), R_CI_lower(:), R_CI_upper(:), ...
                                BF10_R(:), lnBF10_R(:)])])';
 
@@ -1126,7 +1129,8 @@ end
 %! Var_true = var (BOOTSTAT, 0, 2);
 %! Var_iid  = var (BOOTSTAT_SRS, 0, 2);
 %! DEFF = mean (Var_true ./ Var_iid);
-%! % Or more simply, we can use the deffcalc function, which does the same thing
+%! % Or more simply, we can use the deffcalc function, which does the same thing.
+%! % We take the mean DEFF across all contrasts for a stable global penalty.
 %! DEFF = mean (deffcalc (BOOTSTAT, BOOTSTAT_SRS)) 
 %! 
 %! % Fit a cluster-robust empirical Bayes model

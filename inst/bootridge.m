@@ -37,7 +37,9 @@
 %        scale) rather than literal posterior odds under a fully specified prior
 %        [3–5]. The log scale (lnBF10) is numerically stable and recommended
 %        for interpretation; BF10 may be shown as 0 or Inf when beyond machine
-%        range, while lnBF10 remains finite.
+%        range, while lnBF10 remains finite. These Bayesian statistics converge 
+%        to standard conjugate Bayesian evidence as the effective residual 
+%        degrees of freedom (df_t) increase.
 %
 %      For convenience, the statistics-resampling package also provides the
 %      function `bootlm`, which offers a user-friendly but feature-rich interface
@@ -249,6 +251,15 @@
 %      distribution for coefficients and linear estimates, which is used
 %      for credible intervals and Bayes factors.
 %
+%      PRIOR CALIBRATION & DATA INDEPENDENCE:
+%      To prevent circularity in the prior selection, lambda is optimized 
+%      solely by minimizing the .632 bootstrap out-of-bag (OOB) error. 
+%      This ensures the prior precision is determined by the model's 
+%      ability to predict "unseen" observations (data points not used 
+%      for the coefficient estimation in a given bootstrap draw), 
+%      thereby maintaining a principled separation between the data used 
+%      for likelihood estimation and the data used for prior tuning.
+%
 %      BAYES FACTORS:
 %      For regression coefficients and linear estimates, Bayes factors are
 %      computed using the Savage–Dickey density ratio evaluated on the
@@ -276,6 +287,12 @@
 %          scale, t(0, sigma_prior, df_t), with scale determined by the
 %          bootstrap‑optimised ridge parameter (lambda) and design effect
 %          DEFF.
+%
+%          In the limit (high df_t), the inferential framework converges to a 
+%          Normal-Normal conjugate prior where the prior precision is 
+%          determined by the optimized lambda. At lower df_t, the function 
+%          provides more robust, t-marginalized inference to account for 
+%          uncertainty in the error variance.
 %
 %        o Residual Variance: Implicit (working) Inverse-Gamma prior,
 %          Inv-Gamma(df_t/2, Sigma_Y_hat), induced by variance estimation
@@ -1084,13 +1101,38 @@ end
 %! group = {'A' 'B' 'C'; 'A' 'B' 'C'; 'A' 'B' 'C'; 'A' 'B' 'C'; ...
 %!          'A' 'B' 'C'; 'A' 'B' 'C'; 'A' 'B' 'C'; 'A' 'B' 'C'};
 %!
+%! % Fit model with cluster-based resampling. We are using Bayesian bootstrap
+%! % using 'auto' prior, which effectively applies Bessel's correction to the
+%! % variance of the bootstrap distribution for the contrasts (trt_vs_ctrl).
 %! [STATS, BOOTSTAT, AOVSTAT, PREDERR, MAT] = bootlm (data, {group}, ...
-%!      'clustid', clustid, 'seed', 1, 'display', 'off', 'contrasts', ...
-%!      'helmert', 'method', 'bayes', 'dim', 1, 'posthoc', 'trt_vs_ctrl');
+%!      'clustid', clustid, 'seed', 1, 'display', 'on', 'contrasts', ...
+%!      'helmert', 'method', 'bayes', 'prior', 'auto', 'dim', 1, ...
+%!      'posthoc', 'trt_vs_ctrl');
 %!
 %! % Fit a cluster-robust empirical Bayes model
-%! g = mean (accumarray (clustid(:), 1, [], @sum));    % g is mean cluster size
-%! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L, g); % Upperbound DEFF is m
+%! g = max (accumarray (clustid(:), 1, [], @sum));     % g is max. cluster size
+%! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L, g); % Upperbound DEFF is g
+%!
+%! % Or we can get a obtain the design effect empirically using resampling.
+%! % We already fit the model accounting for clustering, now lets fit it
+%! % under I.I.D. (i.e. without clustering)
+%! % Fit model with resampling under I.I.D.
+%! [STATS_SRS, BOOTSTAT_SRS] = bootlm (data, {group}, 'seed', 1, 'display', ...
+%!      'off', 'contrasts', 'helmert', 'method', 'bayes', 'dim', 1, ...
+%!      'posthoc', 'trt_vs_ctrl');
+%!
+%! % Empirically calculate the design effect averaged over the variance of
+%! % of the contrasts we are interested in
+%! Var_true = var (BOOTSTAT, 0, 2);
+%! Var_iid  = var (BOOTSTAT_SRS, 0, 2);
+%! DEFF = mean (Var_true ./ Var_iid)   % Alternatively we could take the maximum
+%! 
+%! % Fit a cluster-robust empirical Bayes model
+%! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L, DEFF);
+%!
+%! % Note: Using the empirical DEFF (3.54) instead of the upper-bound (4.0) 
+%! % recovers inferential power, as seen by the higher Bayes Factor (lnBF10) 
+%! % and narrower credible intervals.
 
 %!demo
 %!

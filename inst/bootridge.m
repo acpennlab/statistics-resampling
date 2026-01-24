@@ -81,11 +81,6 @@
 %      observations in the out-of-bag samples. The default value of NBOOT is
 %      100, but more resamples are recommended to reduce monte carlo error.
 %
-%      * If the parallel computing toolbox (Matlab) or package (Octave) is
-%      installed and loaded, then bootstrap function evaluations will be
-%      automatically accelerated by parallel processing on platforms with
-%      multiple processors. The benefit is realised most when NBOOT is large.
-%
 %      The bootstrap tuning of the ridge parameter relies on resampling
 %      functionality provided by the statistics-resampling package. In
 %      particular, `bootridge` depends on the functions `bootstrp` and `boot` to
@@ -122,10 +117,22 @@
 %      Monte carlo error of the results can be assessed by repeating the
 %      analysis multiple times, each time with a different random seed.
 %
-%      'bootridge (..., TOL)' sets the difference in log10(lambda) when the
-%      bootstrap-based machine learning optimization will break from iterative 
-%      golden section search of the minimum prediction error. The default
-%      tolerance is 0.005, corresponding to approximately 1% change in lambda.
+%      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED, TOL)' controls
+%      the convergence tolerance for optimizing the ridge tuning constant lambda
+%      on the log10 scale. The search terminates when the width of the current
+%      bracket satisfies
+%
+%          log10(lambda_high) - log10(lambda_low) <= TOL.
+%
+%      Thus, TOL determines the relative precision of lambda. The default value
+%      TOL = 0.005 corresponds to approximately a 1% change in lambda (since
+%      10^0.005 ≈ 1.01), which is typically well below the Monte Carlo noise of
+%      the .632 bootstrap estimate of prediction error.
+%
+%      * If sufficient parallel resources are available (four or more workers),
+%        the optimization uses a parallel k-section search; otherwise, a serial
+%        golden-section search is used. The tolerance TOL applies identically
+%        in both cases.
 %
 %      'S = bootridge (Y, X, ...)' returns a structure containing posterior
 %      summaries including posterior means, credibility intervals, Bayes factors,
@@ -577,23 +584,24 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
 
   % Check if running in Octave (else assume Matlab)
   info = ver; 
-  ISOCTAVE = any (ismember ({info.Name}, 'Octave'));
+  isoctave = any (ismember ({info.Name}, 'Octave'));
 
   % Check if we have parallel processing capabilities
-  paropt = struct;
-  paropt.UseParallel = false; % Default
-  if (ISOCTAVE)
+  ncpus = 1;     % Default is serial processing
+  if (isoctave)
     software = pkg ('list');
     names = cellfun (@(S) S.name, software, 'UniformOutput', false);
     status = cellfun (@(S) S.loaded, software, 'UniformOutput', false);
     index = find (~ cellfun (@isempty, regexpi (names, '^parallel')));
     if ( (~ isempty (index)) && (logical (status{index})) )
-      paropt.UseParallel = true;
+      ncpus = max (ncpus, nproc);
     end
   else
     try 
-      pool = gcp ('nocreate'); 
-      paropt.UseParallel = ~ isempty (pool);
+      pool = gcp ('nocreate');
+      if (~ isempty (pool))
+        ncpus = max (ncpus, pool.NumWorkers);
+      end
     catch
       % Do nothing
     end
@@ -623,19 +631,32 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   % of shrinkage.
   z_score = @(A) bsxfun (@rdivide, bsxfun (@minus, A, mean (A)), std (A, 0));
   YS = z_score (Y);
-  mask = true (1, n); mask([1, categor]) = false;
-  XS = X; XS(:, mask) = z_score (XS(:, mask));
 
-  % Objective for lambda using .632 bootstrap prediction error.
-  % Standardizing outcomes (YS) ensures equal weight across multivariate 
-  % dimensions
-  obj_func = @(lambda) booterr632 (YS, X, lambda, P, nboot, seed, paropt);
+  % Objective for lambda using .632 bootstrap prediction error. Standardizing
+  % outcomes (YS) ensures equal weight across multivariate dimensions
+  parsubfun = struct ('booterr632', @booterr632);
+  obj_func = @(lambda) parsubfun.booterr632 (YS, X, lambda, P, nboot, seed);
 
-  % Golden-section search for optimal lambda by .632 bootstrap prediction error
-  smax = svds (X, 1);                    % returns the largest singular value
+  % Search for the optimal lambda by .632 bootstrap prediction error
+  try
+    smax = svds (X, 1);                  % returns the largest singular value
+  catch
+    s = svd (X);
+    smax = s(1);
+  end
   amin = log10 (smax^2 * eps);           % minimum a for well-conditioned system
   bmax = log10 (smax^2);                 % maximum b for well-conditioned system
-  [lambda, iter] = gss (obj_func, amin, bmax, tol);
+  if (ncpus < 4)
+    % Golden-section search (serial).
+    [lambda, iter] = gss (obj_func, amin, bmax, tol);
+  else
+    % k-section search (parallel).
+    % Only more efficient if ncpus is 4 or more.
+    parsubfun.obj_func = obj_func;
+    [lambda, iter] = kss (parsubfun, amin, bmax, tol, ncpus, isoctave);
+  end
+
+  % Get the prediction error at the optimal lambda
   pred_err = obj_func (lambda);
 
   % Heuristic correction to lambda (prior precision) for the design effect.
@@ -715,9 +736,9 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   % Effective inferential degrees of freedom for marginal (variance‑integrated)
   % inference; this does NOT affect ridge optimisation, only uncertainty and
   % Bayes factors.
-  df_t = m / deff - trace (A \ (X' * X));  % Use Student's t distribution
-  critval = distinv (1 - alpha / 2, df_t);
-  %critval = stdnorminv (1 - alpha / 2);   % Use Normal z distribution
+  df_t = max (1, m / deff - trace (A \ (X' * X)));
+  critval = distinv (1 - alpha / 2, df_t); % Student's t distribution
+  %critval = stdnorminv (1 - alpha / 2);            % Use Normal z distribution
 
   % Calculation of credibility intervals
   if (c < 1)
@@ -930,7 +951,7 @@ end
 
 %% FUNCTION FOR .632 BOOTSTRAP ESTIMATOR OF PREDICTION ERROR
 
-function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed, paropt)
+function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
 
   % Efron and Tibshirani (1993) An Introduction to the Bootstrap. New York, NY:
   %  Chapman & Hall. pg 247-252
@@ -941,8 +962,7 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed, paropt)
   % The following bootstrap approach uses bootknife resampling to avoid empty
   % OOB samples. Resampling is also balanced to reduce Monte Carlo error.
   [BOOTSTAT, jnk, jnk, BOOTOOB] = bootstrp (nboot, ridge, Y, X, 'loo', true,  ...
-                                            'match', true, 'seed', seed, ...
-                                            'Options', paropt);
+                                            'match', true, 'seed', seed);
 
   % Calculate the number of outcomes (q > 1 for multivariate)
   q = size (Y, 2);
@@ -991,6 +1011,42 @@ function [lambda, iter] = gss (f, a, b, tol)
       a = c; c = d; fc = fd;
       d = a + (b - a) * invphi;
       fd = f(10^d);
+    end
+    iter = iter + 1;
+  end
+  lambda = 10^((b + a)/2);
+
+end
+
+%--------------------------------------------------------------------------
+
+% FUNCTION FOR K-SECTION SEARCH MINIMIZATION OF AN OBJECTIVE FUNCTION
+
+function [lambda, iter] = kss (parsubfun, a, b, tol, k, isoctave)
+
+  % Parallel k-section search. 
+  % Implicit computational efficiency for even k, which prevents wasteful
+  % evaluating of the same lambda twice between iterations.
+  k = max (2, 2 * fix (0.5 * k));
+  iter = 0;
+  while ((b - a) > tol)
+    x  = arrayfun (@(i) a + i / (k + 1) * (b - a), 1:k);
+    if (isoctave)
+      fx = pararrayfun (k, @(i) parsubfun.obj_func (10^x(i)), 1:k);
+    else
+      fx = nan (1, k);
+      parfor i = 1:k
+        fx(i) = parsubfun.obj_func (10^x(i));
+      end
+    end
+    m  = find (fx == min(fx), 1);
+    if (m == 1)
+      b = x(m+1);
+    elseif (m == k)
+      a = x(m-1);
+    else
+      a = x(m-1);
+      b = x(m+1);
     end
     iter = iter + 1;
   end

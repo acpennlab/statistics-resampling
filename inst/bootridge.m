@@ -982,12 +982,12 @@ function [lambda, iter] = gss (f, a, b, tol)
       fd = f(10^d);
     end
     if (fc < fd)
-      % Minimum lies in [a, d]; reuse (fc)
+      % Minimum lies in [a, d]; reuse fc
       b = d; d = c; fd = fc;
       c = b - (b - a) * invphi;
       fc = f(10^c);
     else
-      % Minimum lies in [c, b]; reuse (fd)
+      % Minimum lies in [c, b]; reuse fd
       a = c; c = d; fc = fd;
       d = a + (b - a) * invphi;
       fd = f(10^d);

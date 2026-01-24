@@ -1,5 +1,5 @@
-% Empirical Bayes Ridge Regression with ridge tuning via .632 bootstrap
-% prediction error for univariate or multivariate outcomes.
+% Empirical Bayes Penalized Regression for univariate or multivariate outcomes, 
+% with shrinkage tuned to minimize prediction error by .632 bootstrap-based ML.
 %
 % -- Function File: bootridge (Y, X)
 % -- Function File: bootridge (Y, X, CATEGOR)
@@ -14,13 +14,13 @@
 %      'bootridge (Y, X)' fits an empirical Bayes ridge regression model using
 %      a linear Normal (Gaussian) likelihood with an empirical Bayes normal
 %      ridge prior on the regression coefficients. The ridge tuning constant
-%      (lambda) is selected empirically to minimize prediction error [1, 2].
-%      Y is an m-by-q matrix of outcomes and X is an m-by-n design matrix whose
-%      first column must correspond to an intercept term. If an intercept term 
-%      (a column of ones) is not found in the first column of X, one is added
-%      automatically. If any rows of X or Y contain missing values (NaN) or
-%      infinite values (+/- Inf), the corresponding observations are omitted
-%      before fitting.
+%      (lambda) is optimized via .632 bootstrap-based machine learning (ML) to
+%      minimize out-of-bag prediction error [1, 2]. Y is an m-by-q matrix of
+%      outcomes and X is an m-by-n design matrix whose first column must
+%      correspond to an intercept term. If an intercept term (a column of ones)
+%      is not found in the first column of X, one is added automatically. If any
+%      rows of X or Y contain missing values (NaN) or infinite values (+/- Inf),
+%      the corresponding observations are omitted before fitting.
 %
 %      For each outcome, the function prints posterior summaries for regression
 %      coefficients or linear estimates, including posterior means, equal-tailed
@@ -82,8 +82,9 @@
 %      100, but more resamples are recommended to reduce monte carlo error.
 %
 %      * If the parallel computing toolbox (Matlab) or package (Octave) is
-%      installed and loaded, then these computations will be automatically
-%      accelerated by parallel processing on platforms with multiple processors.
+%      installed and loaded, then bootstrap function evaluations will be
+%      automatically accelerated by parallel processing on platforms with
+%      multiple processors. The benefit is realised most when NBOOT is large.
 %
 %      The bootstrap tuning of the ridge parameter relies on resampling
 %      functionality provided by the statistics-resampling package. In
@@ -121,10 +122,10 @@
 %      Monte carlo error of the results can be assessed by repeating the
 %      analysis multiple times, each time with a different random seed.
 %
-%      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED, TOL)' sets the
-%      difference in log10(lambda) when optimization will break from iterative
-%      minimization of the prediction error. The default is 0.005, corresponding
-%      to approximately 1% change in lambda.
+%      'bootridge (..., TOL)' sets the difference in log10(lambda) when the
+%      bootstrap-based machine learning optimization will break from iterative 
+%      golden section search of the minimum prediction error. The default
+%      tolerance is 0.005, corresponding to approximately 1% change in lambda.
 %
 %      'S = bootridge (Y, X, ...)' returns a structure containing posterior
 %      summaries including posterior means, credibility intervals, Bayes factors,
@@ -948,7 +949,7 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed, paropt)
 
   % Simple bootstrap estimate of error (S_ERR)
   % (S_ERR is equivalent to MSEP in Delaney and Chatterjee, 1986)
-  mse = @(r) mean (r(:).^2);
+  mse = @(r) sum (r(:).^2) ./ numel (r); % Faster than mean ()
   S_ERR = sum (arrayfun (@(b) ...
                  mse (Y(BOOTOOB{b}, :) - X(BOOTOOB{b}, :) * ...
                       reshape (BOOTSTAT(b, :), [], q)), 1:nboot)) / nboot;
@@ -974,12 +975,22 @@ function [lambda, iter] = gss (f, a, b, tol)
   invphi = (sqrt (5) - 1) / 2;
   iter = 0;
   while ((b - a) > tol)
-    c = b - (b - a) * invphi;
-    d = a + (b - a) * invphi;
-    if f(10^c) < f(10^d)
-      b = d;
+    if (iter < 1)
+      c = b - (b - a) * invphi;
+      d = a + (b - a) * invphi;
+      fc = f(10^c);
+      fd = f(10^d);
+    end
+    if (fc < fd)
+      % Minimum lies in [a, d]; reuse (fc)
+      b = d; d = c; fd = fc;
+      c = b - (b - a) * invphi;
+      fc = f(10^c);
     else
-      a = c;
+      % Minimum lies in [c, b]; reuse (fd)
+      a = c; c = d; fc = fd;
+      d = a + (b - a) * invphi;
+      fd = f(10^d);
     end
     iter = iter + 1;
   end

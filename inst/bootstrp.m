@@ -531,12 +531,12 @@ function [bootstat, bootsam, stats, bootoob] = bootstrp (argin1, argin2, varargi
   % Compute and return the out-of-bag bootstrap samples
   if (nargout > 3)
     if (match)
-      bootoob = arrayfun (@(b) setdiff ((1:n{1})', bootsam(:,b)), 1:nboot, ...
+      bootoob = arrayfun (@(b) getoob (n{1}, bootsam(:,b)), 1:nboot, ...
                          'UniformOutput', false);
     else
       bootoob = cell (1, nvar);
       for v = 1:nvar
-        bootoob{v} = arrayfun (@(b) setdiff ((1:n{v})', bootsam{v}(:,b)), ...
+        bootoob{v} = arrayfun (@(b) getoob (n{v}, bootsam{v}(:,b)), ...
                                1:nboot, 'UniformOutput', false);
       end
     end
@@ -560,6 +560,19 @@ function bootstat = booteval (x, bootsam, bootfun, n, nvar)
     end
 
 end
+
+%--------------------------------------------------------------------------
+
+function oobsam = getoob (n, bootsam)
+
+  % Helper subfunction to get out-of-bag samples from bootstrap sample of size n
+  mask = true (n, 1);
+  mask(bootsam) = false;
+  oobsam = find (mask);
+
+end
+
+%--------------------------------------------------------------------------
 
 %!demo
 %!

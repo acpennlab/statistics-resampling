@@ -393,7 +393,8 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
       switch nprob
         case 1
           z = stdnorminv (1 - (1 - prob) / 2);
-          ci = original + std (bootstat, 1 , 2) * z * [-1, 1];
+          ci = bsxfun (@times, original + std (bootstat, 1 , 2) * z, ...
+                       [-1, 1]);
         case 2
           z = stdnorminv (prob);
           ci = original + std (bootstat, 1 , 2) * z;

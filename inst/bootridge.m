@@ -991,6 +991,8 @@ end
 
 function [lambda, iter] = gss (f, a, b, tol)
 
+  % After initialization, golden-section search only requires a single function
+  % evaluation per iteration.
   % Algorithm based on https://en.wikipedia.org/wiki/Golden-section_search
   invphi = (sqrt (5) - 1) / 2;
   iter = 0;
@@ -1026,27 +1028,27 @@ function [lambda, iter] = kss (parsubfun, a, b, tol, k, isoctave)
 
   % Parallel k-section search. 
   % Implicit computational efficiency for even k, which prevents wasteful
-  % evaluating of the same lambda twice between iterations.
+  % evaluation of the same lambda twice between iterations.
   k = max (2, 2 * fix (0.5 * k));
   iter = 0;
   while ((b - a) > tol)
-    x  = arrayfun (@(i) a + i / (k + 1) * (b - a), 1:k);
+    p  = arrayfun (@(i) a + i / (k + 1) * (b - a), 1:k);
+    x = 10.^p;
     if (isoctave)
-      fx = pararrayfun (k, @(i) parsubfun.obj_func (10^x(i)), 1:k);
+      fx = pararrayfun (k, @(x) parsubfun.obj_func (x), x);
     else
       fx = nan (1, k);
       parfor i = 1:k
-        fx(i) = parsubfun.obj_func (10^x(i));
+        fx(i) = parsubfun.obj_func (x(i));
       end
     end
-    m  = find (fx == min(fx), 1);
+    [jnk, m] = min (fx);
     if (m == 1)
-      b = x(m+1);
+      b = p(2);
     elseif (m == k)
-      a = x(m-1);
+      a = p(k - 1);
     else
-      a = x(m-1);
-      b = x(m+1);
+      a = p(m - 1); b = p(m + 1);
     end
     iter = iter + 1;
   end

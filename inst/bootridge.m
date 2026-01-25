@@ -1,5 +1,5 @@
-% Empirical Bayes Penalized Regression for univariate or multivariate outcomes, 
-% with shrinkage tuned to minimize prediction error by .632 bootstrap-based ML.
+% Empirical Bayes penalized regression for univariate or multivariate outcomes, 
+% with shrinkage tuned to minimize prediction error by .632 bootstrap.
 %
 % -- Function File: bootridge (Y, X)
 % -- Function File: bootridge (Y, X, CATEGOR)
@@ -119,19 +119,19 @@
 %
 %      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED, TOL)' controls
 %      the convergence tolerance for optimizing the ridge tuning constant lambda
-%      on the log10 scale. The search terminates when the width of the current
-%      bracket satisfies
+%      on the log10 scale. Hyperparameter optimization terminates when the width
+%      of the current bracket satisfies:
 %
-%          log10(lambda_high) - log10(lambda_low) <= TOL.
+%          log10(lambda_high) − log10(lambda_low) < TOL.
 %
-%      Thus, TOL determines the relative precision of lambda. The default value
-%      TOL = 0.005 corresponds to approximately a 1% change in lambda (since
-%      10^0.005 ≈ 1.01), which is typically well below the Monte Carlo noise of
-%      the .632 bootstrap estimate of prediction error.
+%      Thus, TOL determines the relative (multiplicative) precision of lambda.
+%      The default value TOL = 0.005 corresponds to approximately a 1% change in
+%      lambda, which is typically well below the Monte Carlo noise of the .632
+%      bootstrap estimate of prediction error.
 %
 %      * If sufficient parallel resources are available (four or more workers),
-%        the optimization uses a parallel k-section search; otherwise, a serial
-%        golden-section search is used. The tolerance TOL applies identically
+%        the optimization uses a parallel k‑section search; otherwise, a serial
+%        golden‑section search is used. The tolerance TOL applies identically
 %        in both cases.
 %
 %      'S = bootridge (Y, X, ...)' returns a structure containing posterior
@@ -254,13 +254,13 @@
 %      associated with classical post-hoc adjustments [6, 7].
 %
 %      PREDICTIVE OPTIMIZATION:
-%      The ridge tuning constant is selected empirically by minimizing the .632 
-%      bootstrap estimate of prediction error [1, 2]. This aligns lambda with 
-%      minimum estimated out‑of‑sample mean squared prediction error (a Gaussian
-%      surrogate for Kullback–Leibler predictive risk), ensuring the model is 
-%      optimized for generalizability rather than mere in-sample fit [8–10].
-%      This lambda in turn determines the scale of the Normal ridge prior used
-%      to shrink slope coefficients toward zero [11].
+%      The ridge tuning constant (hyperparameter) is selected empirically by
+%      minimizing the .632 bootstrap estimate of prediction error [1, 2]. This
+%      aligns lambda with minimum estimated out‑of‑sample mean squared
+%      prediction error, ensuring the model is optimized for generalizability
+%      rather than mere in-sample fit [8–10]. This lambda in turn determines the
+%      scale of the Normal ridge prior used to shrink slope coefficients toward
+%      zero [11].
 %
 %      CONDITIONAL VS MARGINAL PRIORS:
 %      The ridge penalty (lambda) corresponds to a Normal prior on the
@@ -1245,7 +1245,6 @@ end
 %! % Or we can get a obtain the design effect empirically using resampling.
 %! % We already fit the model accounting for clustering, now lets fit it
 %! % under I.I.D. (i.e. without clustering)
-%! % Fit model with resampling under I.I.D.
 %! [STATS_SRS, BOOTSTAT_SRS] = bootlm (data, {group}, 'seed', 1, 'display', ...
 %!      'off', 'contrasts', 'helmert', 'method', 'bayes', 'dim', 1, ...
 %!      'posthoc', 'trt_vs_ctrl');

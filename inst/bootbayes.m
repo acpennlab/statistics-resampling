@@ -329,6 +329,7 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
   % Set random seed
   if ( (nargin > 6) && (~ isempty (seed)) )
     if (ISOCTAVE)
+      rand ('seed', seed);
       randg ('seed', seed);
     else
       rand ('seed', seed);

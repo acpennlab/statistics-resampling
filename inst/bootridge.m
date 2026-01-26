@@ -1,5 +1,5 @@
 % Empirical Bayes penalized regression for univariate or multivariate outcomes, 
-% with shrinkage tuned to minimize prediction error by .632 bootstrap.
+% with shrinkage tuned to minimize prediction error computed by .632 bootstrap.
 %
 % -- Function File: bootridge (Y, X)
 % -- Function File: bootridge (Y, X, CATEGOR)
@@ -455,7 +455,7 @@
 % [18] Cameron, A. C., & Miller, D. L. (2015) A Practitioner's Guide to 
 %      Cluster-Robust Inference. J. Hum. Resour., 50(2):317–372.
 %
-%  bootridge (version 2026.01.22)
+%  bootridge (version 2026.01.26)
 %  Author: Andrew Charles Penn
 
 
@@ -629,6 +629,10 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   % dimensions
   z_score = @(A) bsxfun (@rdivide, bsxfun (@minus, A, mean (A)), std (A, 0));
   YS = z_score (Y);
+  if ( any (isnan (YS(:)) | isinf (YS(:))) )
+    error (cat (2, 'bootridge: Standardization requires outcomes to have', ...
+                   ' nonzero variance.'));
+  end
   parsubfun = struct ('booterr632', @booterr632);
   obj_func = @(lambda) parsubfun.booterr632 (YS, X, lambda, P, nboot, seed);
 
@@ -677,7 +681,7 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   Beta = A \ (X' * Y);                          % n x q coefficient matrix
   df_lambda = m  - trace (A \ (X' * X));        % equivalent to m - trace (H)
   if (df_lambda < 1)
-    error ('bootridge: df_lambda < 1; check the model is correctly specified')
+    error ('bootridge: df_lambda < 1; check the model is correctly specified');
   end
   df_lambda = max (df_lambda, 1);
 
@@ -732,6 +736,10 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   % inference; this does NOT affect ridge optimisation, only uncertainty and
   % Bayes factors.
   df_t = max (1, m / deff - trace (A \ (X' * X)));
+  if (df_t == 1)
+    warning (cat (2, 'bootridge: t-statistics evaluated with effective', ...
+                     ' degrees of freedom clamped at 1 degree of freedom.'));
+  end
   critval = distinv (1 - alpha / 2, df_t); % Student's t distribution
   %critval = stdnorminv (1 - alpha / 2);            % Use Normal z distribution
 
@@ -999,6 +1007,7 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
 
       % Calculate and accumulate number of OOB observations
       N_OOB  = N_OOB  + numel (OOBSAM) ;
+
     end
 
   end

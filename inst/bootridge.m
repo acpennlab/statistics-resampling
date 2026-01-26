@@ -624,16 +624,11 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   % Convert the vector of penalties to a diaganol matrix
   P = diag (P);
 
-  % Approximate lambda0 is the variance ratio of the residuals and coefficients.
-  % This estimator scale invariant since it uses the standardized data. The
-  % initial lambda0 estimate serves only as a scale‑invariant anchor for the
-  % bootstrap‑optimized ridge parameter and does not determine the final amount
-  % of shrinkage.
+  % Objective function for lambda using .632 bootstrap prediction error.
+  % Standardizing outcomes (YS) ensures equal weight across multivariate
+  % dimensions
   z_score = @(A) bsxfun (@rdivide, bsxfun (@minus, A, mean (A)), std (A, 0));
   YS = z_score (Y);
-
-  % Objective for lambda using .632 bootstrap prediction error. Standardizing
-  % outcomes (YS) ensures equal weight across multivariate dimensions
   parsubfun = struct ('booterr632', @booterr632);
   obj_func = @(lambda) parsubfun.booterr632 (YS, X, lambda, P, nboot, seed);
 
@@ -953,31 +948,70 @@ end
 
 function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
 
+
+  % This function computes Efron & Tibshirani’s .632 bootstrap prediction error
+  % for a multivariate linear ridge/Tikhonov model. Loss is the per-observation
+  % squared Euclidean error:
+  %       Q(y_i, yhat_i) = ||y_i - yhat_i||_2^2
   % Efron and Tibshirani (1993) An Introduction to the Bootstrap. New York, NY:
   %  Chapman & Hall. pg 247-252
 
-  % Anonymous function for ridge regression (returns n x q)
-  ridge = @(Y, X) (X' * X + lambda * P) \ (X' * Y);
-
-  % The following bootstrap approach uses bootknife resampling to avoid empty
-  % OOB samples. Resampling is also balanced to reduce Monte Carlo error.
-  [BOOTSTAT, jnk, jnk, BOOTOOB] = bootstrp (nboot, ridge, Y, X, 'loo', true,  ...
-                                            'match', true, 'seed', seed);
-
   % Calculate the number of outcomes (q > 1 for multivariate)
-  q = size (Y, 2);
+  [n, q] = size (Y);
+  p = size (X, 2);
 
-  % Simple bootstrap estimate of error (S_ERR)
-  % (S_ERR is equivalent to MSEP in Delaney and Chatterjee, 1986)
-  mse = @(r) sum (r(:).^2) ./ numel (r); % Faster than mean ()
-  S_ERR = sum (arrayfun (@(b) ...
-                 mse (Y(BOOTOOB{b}, :) - X(BOOTOOB{b}, :) * ...
-                      reshape (BOOTSTAT(b, :), [], q)), 1:nboot)) / nboot;
+  % Regularization matrix
+  LP = lambda * P;
+
+  % Balanced bootknife resampling indices (n x nboot). See boot() documentation.
+  % Bootstrap resample row indices.
+  BOOTSAM  = boot (n, nboot, true, seed);
+
+  % Perform calculations to enable per-case (pooled) averaging of squared
+  % Euclidean residuals.
+  SSE_OOB = 0; N_OOB  = 0;
+  for b = 1:nboot
+
+    % Get the bootstrap indices for resample b
+    i = BOOTSAM(:, b);
+
+    % Fit the ridge regression with the provided lambda value on each bootstrap
+    % and return the coefficients (p x q)
+    Beta = (X(i, :)' * X(i, :) + LP) \ (X(i, :)' * Y(i, :));
+
+    % Find the indices of OOB observations for this bootstrap resample
+    OOBSAM = true(n,1);
+    OOBSAM(i) = false;
+    OOBSAM = find (OOBSAM);
+
+    % Accumulate the sums of squared errors and number of  OOB observations
+    if (~isempty (OOBSAM))
+
+      % Predict the values of the OOB observations from the coefficients for
+      % for each of the q outcomes
+      PRED_OOB = X(OOBSAM, :) * Beta;
+
+      % Calculate the residuals of the OOB predictions for each of the outcomes
+      RESI_OOB = Y(OOBSAM, :) - PRED_OOB;
+
+      % Calculate and accumulate the per-observation squared Euclidean residuals
+      SSE_OOB = SSE_OOB + sum (sum (RESI_OOB.^2, 2));
+
+      % Calculate and accumulate number of OOB observations
+      N_OOB  = N_OOB  + numel (OOBSAM) ;
+    end
+
+  end
+
+  % Calculate a simple estimate of prediction error (S_ERR) 
+  S_ERR = SSE_OOB / N_OOB;
 
   % Apparent error in resamples (A_ERR)
-  A_ERR = mse (Y - X * ridge (Y, X));
+  Beta_obs = (X' * X + LP) \ (X' * Y);
+  resi = Y - X * Beta_obs;
+  A_ERR = sum (sum (resi.^2, 2)) / n;
 
-  % Optimism in apparent error
+  % Optimism in apparent error (OPTIM)
   OPTIM = .632 * (S_ERR - A_ERR);
 
   % The bootstrap .632 estimator of prediction error

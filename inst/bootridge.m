@@ -735,7 +735,7 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   % Effective inferential degrees of freedom for marginal (variance‑integrated)
   % inference; this does NOT affect ridge optimisation, only uncertainty and
   % Bayes factors.
-  df_t = max (1, m / deff - trace (A \ (X' * X)));
+  df_t = max (1, m / deff - trace (A \ (X' * X)));   %  m / DEFF - trace (H)
   if (df_t == 1)
     warning (cat (2, 'bootridge: t-statistics evaluated with effective', ...
                      ' degrees of freedom clamped at 1 degree of freedom.'));
@@ -835,8 +835,11 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
     % Fisher's z-transform with numerical guard
     Z = atanh (min (max (R, -1 + eps), 1 - eps));
 
+    % Effective sample size for Fisher‑z variance implied by inferential df_t
+    n_eff = df_t;
+
     % Standard error of Z
-    SE_z = 1 / sqrt (max (df_t, 4) - 3);
+    SE_z = 1 / sqrt (max (n_eff, 4) - 3);
 
     % Symmetric credible intervals for Z, then back-transform to R
     R_CI_lower = tanh (Z - critval * SE_z);
@@ -892,16 +895,39 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
     fprintf (cat (2, '\n Empirical Bayes Ridge Regression (.632 Bootstrap',...
                      ' Tuning) - Summary\n ******************************', ...
                      '*************************************************\n'));
-    fprintf ('\n Bootstrap optimized ridge tuning constant (lambda): %.6g\n', ...
-             lambda);
-    fprintf ('\n Effective residual degrees of freedom: %.3f\n', df_lambda);
     fprintf ('\n Number of outcomes (q): %d\n', q);
     fprintf ('\n Design effect (Deff): %.3g\n', deff);
-    if (q > 1)
-      fprintf ('\n Residual covariance (sigma^2):\n'); disp (Sigma_Y_hat);
+    if (deff == 1)
+      fprintf (cat (2, '\n Bootstrap optimized ridge tuning constant', ...
+                       ' (lambda): %.6g\n'), lambda);
     else
-      fprintf ('\n Residual variance (sigma^2): %.3f\n', Sigma_Y_hat);
+      fprintf (cat (2, '\n Bootstrap optimized ridge tuning constant', ...
+                       ' (lambda, Deff-adjusted): %.6g\n'), lambda);
     end
+    fprintf (cat (2, '\n Effective residual degrees of freedom (df_lambda):', ...
+                     ' %#.3g\n'), df_lambda);
+    if (q > 1)
+      if (deff == 1)
+        fprintf ('\n Residual covariance (sigma^2):\n');
+      else
+        fprintf ('\n Residual covariance (sigma^2, Deff-inflated):\n');
+      end
+      disp (Sigma_Y_hat);
+    else
+      if (deff == 1)
+        fprintf ('\n Residual variance (sigma^2): %.3g\n', Sigma_Y_hat);
+      else
+        fprintf ('\n Residual variance (sigma^2, Deff-inflated): %.3g\n', ...
+                 Sigma_Y_hat);
+      end
+    end
+    if (deff == 1)
+      fprintf ('\n Inferential degrees of freedom (df_t): %#.3g', df_t);
+    else
+      fprintf (cat (2, '\n Inferential degrees of freedom (df_t,', ...
+                       ' Deff-adjusted): %#.3g'), df_t);
+    end
+    fprintf ('\n Used for credible intervals and Bayes factors below.\n')
 
     % Correlations between outcomes
     if (q > 1)

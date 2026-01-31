@@ -223,14 +223,13 @@
 %            The minimized prediction error calculated using the optimal lambda.
 %
 %        o R_table
-%            Cell array with a header row summarizing residual correlations
-%            (strictly lower-triangular pairs). The first row of R_table
-%            contains column labels; all subsequent rows contain numerical
-%            summaries for individual correlation pairs.
+%            Matrix summarizing residual correlations (strictly lower-
+%            triangular pairs). The columns correspond to Outcome J, Outcome I, 
+%            and the coefficient and credible intervals for their correlation.
 %
 %            Credible intervals for correlations are computed on Fisher’s z
-%            using a t‑based sampling distribution with effective degrees of 
-%            freedom df_t, and then back‑transformed. See CONDITIONAL VS 
+%            [15] using a t‑based sampling distribution with effective degrees 
+%            of freedom df_t, and then back‑transformed. See CONDITIONAL VS 
 %            MARGINAL PRIORS and DETAIL below. Diagonal entries are undefined
 %            and not included.
 %
@@ -289,12 +288,12 @@
 %      computed using the Savage–Dickey density ratio evaluated on the
 %      marginal inference scale. Prior and posterior densities are Student’s
 %      t distributions with shared degrees of freedom (df_t), reflecting
-%      uncertainty in the residual variance under an empirical‑Bayes
+%      uncertainity in the residual variance under an empirical‑Bayes
 %      approximation [3–5].
 %
 %      For residual correlations between outcomes, credible intervals are 
-%      computed on Fisher’s z with effective degrees of freedom df_t and then
-%      back‑transformed to r.
+%      computed on Fisher’s z [15] with effective degrees of freedom df_t and 
+%      then back‑transformed to r.
 %
 %      SUMMARY OF PRIORS:
 %      The model employs the following priors for empirical Bayes inference:
@@ -317,8 +316,8 @@
 %          and marginalization and used to generate the t-layer.
 %
 %        o Correlations: An improper flat prior is assumed on Fisher’s z
-%          transform of the correlation coefficients, p(z) ∝ 1. Under this prior,
-%          the posterior for z is proportional to the t‑based sampling distribution
+%          transform of the correlation coefficients. Under this prior, the
+%          posterior for z is proportional to the t‑based sampling distribution
 %          implied by the effective degrees of freedom df_t.
 %
 %      UNCERTAINTY AND CLUSTERING:
@@ -341,7 +340,7 @@
 %         the ridge-adjusted degrees of freedom (df_lambda = m - trace(H_lambda))
 %         and is then inflated by a factor of DEFF. This yields an "effective"
 %         noise scale on the derived parameter statistics that accounts for
-%         within-cluster correlation [12, 13] according to:
+%         within-cluster correlation [16, 17] according to:
 %             Var_true(beta_hat) = DEFF * Var_iid(beta_hat)
 %
 %      3. Inferential Shape: A marginal Student’s t layer is used for all
@@ -408,44 +407,58 @@
 %  Bibliography:
 %  [1] Delaney, N. J. & Chatterjee, S. (1986) Use of the Bootstrap and Cross-
 %      Validation in Ridge Regression. Journal of Business & Economic Statistics,
-%      4(2):255–262.
+%      4(2):255–262. https://doi.org/10.1080/07350015.1986.10509520
 %  [2] Efron, B. & Tibshirani, R. J. (1993) An Introduction to the Bootstrap.
 %      New York, NY: Chapman & Hall, pp. 247–252.
+%      https://doi.org/10.1201/9780429246593
 %  [3] Dickey, J. M. & Lientz, B. P. (1970) The Weighted Likelihood Ratio,
 %      Sharp Hypotheses about Chances, the Order of a Markov Chain. Ann. Math.
 %      Statist., 41(1):214–226. (Savage–Dickey)
+%      https://doi.org/10.1214/aoms/1177697203
 %  [4] Morris, C. N. (1983) Parametric Empirical Bayes Inference: Theory and
-%      Applications. Journal of the American Statistical Association, 78, 47–55.
-%  [5] Wagenmakers, E.-J., et al. (2010) Bayesian Hypothesis Testing for
-%      Psychologists. Psych. Science, 21(5):629–636. (Applied exposition)
+%      Applications. JASA, 78(381):47–55. https://doi.org/10.2307/2287098
+%  [5] Wagenmakers, E.-J., Lodewyckx, T., Kuriyal, H., & Grasman, R. (2010) 
+%      Bayesian hypothesis testing for psychologists: A tutorial on the 
+%      Savage–Dickey method. Cognitive Psychology, 60(3):158–189.
+%      https://doi.org/10.1016/j.cogpsych.2009.12.001
 %  [6] Gelman, A., Hill, J., & Yajima, M. (2012) Why we usually don't worry 
 %      about multiple comparisons. J. Res. on Educ. Effectiveness, 5:189–211.
+%      https://doi.org/10.1080/19345747.2011.618213
 %  [7] Efron, B. (2010) Large-Scale Inference: Empirical Bayes Methods for 
 %      Estimation, Testing, and Prediction. Cambridge University Press.
+%      https://doi.org/10.1017/CBO9780511761362
 %  [8] Hastie, T., Tibshirani, R., & Friedman, J. (2009) The Elements of
-%      Statistical Learning (2nd ed.). Springer. (Ridge, hat matrix, df)
+%      Statistical Learning (2nd ed.). Springer.
+%      https://doi.org/10.1007/978-0-387-84858-7
 %  [9] Ye, J. (1998) On Measuring and Correcting the Effects of Data Mining and
 %      Model Selection. JASA, 93(441):120–131. (Generalized df)
+%      https://doi.org/10.1080/01621459.1998.10474094
 % [10] Akaike, H. (1973) Information Theory and an Extension of the Maximum
 %      Likelihood Principle. In: 2nd Int. Symp. on Information Theory. (AIC/KL)
+%      https://doi.org/10.1007/978-1-4612-0919-5_38
 % [11] Hoerl, A. E. & Kennard, R. W. (1970) Ridge Regression: Biased Estimation
 %      for Nonorthogonal Problems. Technometrics, 12(1):55–67.
+%      https://doi.org/10.1080/00401706.1970.10488634
 % [12] Satterthwaite, F. E. (1946) An Approximate Distribution of Estimates of
 %      Variance Components. Biometrics Bulletin, 2(6):110–114.
+%      https://doi.org/10.2307/3002019
 % [13] Kenward, M. G. & Roger, J. H. (1997) Small Sample Inference for Fixed 
 %      Effects from Restricted Maximum Likelihood. Biometrics, 53(3):983–997.
+%      https://doi.org/10.2307/2533558
 % [14] Vinod, H. D. (1987) Confidence Intervals for Ridge Regression Parameters.
 %      In Time Series and Econometric Modelling, pp. 279–300.
+%      https://doi.org/10.1007/978-94-009-4790-0_19
 % [15] Fisher, R. A. (1921) On the "Probable Error" of a Coefficient of
 %      Correlation Deduced from a Small Sample. Metron, 1:3–32. (Fisher z)
-% [16] Neuhaus, J. M., & Segal, M. R. (1993) Design Effects for Binary 
-%      Regression Models with Hierarchical Data. Biometrics, 49(3):971–979. 
-%      (Generalized DEFF for regression).
+% [16] Neuhaus, J. M., & Segal, M. R. (1993). Design effects for binary 
+%      regression models fitted to dependent data. Statistics in Medicine, 
+%      12(13):1259–1268. https://doi.org/10.1002/sim.4780121309
 % [17] Cameron, A. C., & Miller, D. L. (2015) A Practitioner's Guide to 
 %      Cluster-Robust Inference. J. Hum. Resour., 50(2):317–372.
+%      https://doi.org/10.3368/jhr.50.2.317
 %
-%  bootridge (version 2026.01.30)
-%  Author: Andrew Charles Penn
+% bootridge (version 2026.01.31)
+% Author: Andrew Charles Penn
 
 
 function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
@@ -843,15 +856,11 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
     R_CI_lower = tanh (Z - critval * SE_z);
     R_CI_upper = tanh (Z + critval * SE_z);
 
-    % Create labels
+    % Get indices of pairs of outcomes
     [I, J] = find (tril (true (q), -1));
-    labels = arrayfun (@(i,j) sprintf ('R_%d,%d', j, i), ...
-                       I, J, 'UniformOutput', false);
 
     % Assemble table-like cell array for correlations
-    R_table = cat (1, ...
-     { 'Correlation', 'CI_lower', 'CI_upper','Outcomes'}, ...
-     [num2cell([R(:), R_CI_lower(:), R_CI_upper(:)]), labels(:), ]);
+    R_table = cat (2, J, I, R, R_CI_lower, R_CI_upper);
 
   end
 
@@ -921,11 +930,11 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
                        ' correlations between outcomes:\n'), ...
                        100* (1 - alpha));
       fprintf (' (Prior on Fisher''s z is flat/improper)\n')
-      fprintf (cat (2, '\n Correlation   CI_lower      CI_upper     ', ...
-                         ' Outcomes\n'));
+      fprintf (cat (2, '\n Outcome J     Outcome I     Correlation', ...
+                        '   CI_lower      CI_upper     \n'));
       for i = 1:q*(q-1)*0.5
-        fprintf (' %#-+10.4g    %#-+10.4g    %#-+10.4g    %s\n', ...
-                 R(i), R_CI_lower(i), R_CI_upper(i), labels{i});
+        fprintf (' %-10d    %-10d    %#-+10.4g    %#-+10.4g    %#-+10.4g\n', ...
+                 J(i), I(i), R(i), R_CI_lower(i), R_CI_upper(i));
       end
     end
 

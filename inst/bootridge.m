@@ -29,8 +29,7 @@
 %      additionally prints posterior summaries for the residual correlations
 %      between outcomes, reported as unique (lower-triangular) outcome pairs.
 %      For each correlation, the printed output includes the estimated
-%      correlation, its credible interval, and the corresponding Bayes factor
-%      for testing zero correlation.
+%      correlation and its credible interval.
 %
 %      Interpretation note (empirical Bayes):
 %        Bayes factors reported by 'bootridge' are empirical‑Bayes approximations
@@ -229,11 +228,11 @@
 %            contains column labels; all subsequent rows contain numerical
 %            summaries for individual correlation pairs.
 %
-%            Credible intervals and Bayes factors for correlations are
-%            computed using Fisher’s z-transform under the same marginal
-%            inferential framework used for coefficients (df_t). See
-%            CONDITIONAL VS MARGINAL PRIORS and DETAIL below. Diagonal
-%            entries are undefined and not included.
+%            Credible intervals for correlations are computed on Fisher’s z
+%            using a t‑based sampling distribution with effective degrees of 
+%            freedom df_t, and then back‑transformed. See CONDITIONAL VS 
+%            MARGINAL PRIORS and DETAIL below. Diagonal entries are undefined
+%            and not included.
 %
 %      DETAIL: The model implements an empirical Bayes ridge regression that
 %      simultaneously addresses the problems of multicollinearity, multiple 
@@ -293,20 +292,14 @@
 %      uncertainty in the residual variance under an empirical‑Bayes
 %      approximation [3–5].
 %
-%      For residual correlations between outcomes, credible intervals are
-%      computed in closed form using Fisher’s z-transform with effective degrees
-%      of freedom df_t, symmetric intervals on the z-scale, and back-
-%      transformation [15]. Bayes factors for H0: r = 0 use the exact change-
-%      of-variables prior induced by a flat prior on the correlation coefficient:
-%          r ~ Uniform (-1, 1)  ==>  z = atanh (r) ~ Logistic (0, 1/2),
-%      so the prior density at z = 0 equals 0.5. Posterior densities on z are
-%      t-marginal with df_t, providing a closed-form, non-arbitrary Savage–
-%      Dickey BF for residual correlations [3, 16].
+%      For residual correlations between outcomes, credible intervals are 
+%      computed on Fisher’s z with effective degrees of freedom df_t and then
+%      back‑transformed to r.
 %
 %      SUMMARY OF PRIORS:
 %      The model employs the following priors for empirical Bayes inference:
 %
-%        o Intercept: Flat/Uniform prior, U(-Inf, Inf).
+%        o Intercept: Improper flat/Uniform prior, U(-Inf, Inf).
 %
 %        o Slopes: Marginal Student’s t prior on the coefficient (or estimate)
 %          scale, t(0, sigma_prior, df_t), with scale determined by the
@@ -323,11 +316,10 @@
 %          Inv-Gamma(df_t/2, Sigma_Y_hat), induced by variance estimation
 %          and marginalization and used to generate the t-layer.
 %
-%        o Correlations: Flat/Uniform prior, U(-1, 1), on the correlation
-%          coefficient scale. While non-informative for r, this induces a 
-%          weakly informative Logistic prior on the Fisher’s z scale. At the 
-%          point null (0), the prior density is 0.5, approximately equivalent 
-%          to a N(0, 0.8) prior.
+%        o Correlations: An improper flat prior is assumed on Fisher’s z
+%          transform of the correlation coefficients, p(z) ∝ 1. Under this prior,
+%          the posterior for z is proportional to the t‑based sampling distribution
+%          implied by the effective degrees of freedom df_t.
 %
 %      UNCERTAINTY AND CLUSTERING:
 %      The design effect specified by DEFF is integrated throughout the model
@@ -377,7 +369,7 @@
 %      `bootbayes`) relative to an i.i.d. assumption. Supplying this 
 %      "Effective DEFF" allows `bootridge` to provide analytical Bayesian 
 %      inference that approximates the results of a full hierarchical or 
-%      resampled model [17, 18].
+%      resampled model [16, 17].
 %
 %      DIAGNOSTIC ASSESSMENT:
 %      Users should utilize `bootlm` for formal diagnostic plots (Normal 
@@ -446,16 +438,13 @@
 %      In Time Series and Econometric Modelling, pp. 279–300.
 % [15] Fisher, R. A. (1921) On the "Probable Error" of a Coefficient of
 %      Correlation Deduced from a Small Sample. Metron, 1:3–32. (Fisher z)
-% [16] Ly, A., Verhagen, J., & Wagenmakers, E.-J. (2016) Harold Jeffreys’s
-%      Default Bayes Factor Hypothesis Tests: Explanation, Extension, and
-%      Application in Psychology. J. Math. Psych., 72:19–32. (Correlation priors)
-% [17] Neuhaus, J. M., & Segal, M. R. (1993) Design Effects for Binary 
+% [16] Neuhaus, J. M., & Segal, M. R. (1993) Design Effects for Binary 
 %      Regression Models with Hierarchical Data. Biometrics, 49(3):971–979. 
 %      (Generalized DEFF for regression).
-% [18] Cameron, A. C., & Miller, D. L. (2015) A Practitioner's Guide to 
+% [17] Cameron, A. C., & Miller, D. L. (2015) A Practitioner's Guide to 
 %      Cluster-Robust Inference. J. Hum. Resour., 50(2):317–372.
 %
-%  bootridge (version 2026.01.26)
+%  bootridge (version 2026.01.30)
 %  Author: Andrew Charles Penn
 
 
@@ -685,6 +674,13 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   end
   df_lambda = max (df_lambda, 1);
 
+  % Calculate the global, rotation‑invariant prior contribution as a percentage.
+  % This is a ridge-based % prior contribution and it is relevant to the prior 
+  % on coefficients and contrasts. A different formula is used for the prior on
+  % the correlations between outcomes.
+  r = rank (X(:, 2:end));              % rotation-invariant effective dimension.
+  prior_perc_ridge = 100 * (1 - (m - df_lambda - 1 ) / r);
+
   % Calculate the residuals for the ridge fit using the optimal lambda
   resid = Y - X * Beta;                               % resid is m x q
   
@@ -824,14 +820,14 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   BF10   = bsxfun (@rdivide, pH0, pH1); BF10(ridx,:) = NaN;
   lnBF10 = log (BF10);                 % ln(1) = 0, ln(0.3) ~= -1, ln(3) ~= +1
 
-  % Posterior correlation between outcomes
-  d = sqrt (diag (Sigma_Y_hat));
-  R = Sigma_Y_hat ./ (d * d');
-  R = R(tril (true (size (R)), -1));
-
-  % Credible intervals for correlations between outcomes (closed-form)
+  % Credible intervals for correlations between outcomes
   if (q > 1)
- 
+
+    % Posterior correlation between outcomes
+    d = sqrt (diag (Sigma_Y_hat));
+    R = Sigma_Y_hat ./ (d * d');
+    R = R(tril (true (size (R)), -1));
+
     % Fisher's z-transform with numerical guard
     Z = atanh (min (max (R, -1 + eps), 1 - eps));
 
@@ -841,22 +837,11 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
     % Standard error of Z
     SE_z = 1 / sqrt (max (n_eff, 4) - 3);
 
-    % Symmetric credible intervals for Z, then back-transform to R
+    % Credible intervals under a flat (improper) prior on Fisher’s z.
+    % Since the posterior is proportional to the marginal-t likelihood, 
+    % equal-tailed intervals are obtained from z_obs ± t_ν * SE_z.
     R_CI_lower = tanh (Z - critval * SE_z);
     R_CI_upper = tanh (Z + critval * SE_z);
-
-    % Prior: Uniform(-1,1) on R  ==>  Logistic(0, 1/2) on Fisher-z
-    % A logistic distribution on Z is induced by a flat prior on the correlation
-    % coefficient, yielding fully closed‑form, non‑arbitrary Bayes factors for
-    % residual correlations. Density at zero under the prior:
-    pH0_Z = 0.5;
-
-    % Posterior density at zero under t-marginal on Fisher-z
-    pH1_Z = distpdf (0, Z, SE_z.^2, df_t);
-
-    % Bayes factors (Savage–Dickey ratio) for the correlation coefficient
-    BF10_R   = bsxfun (@rdivide, pH0_Z, pH1_Z);
-    lnBF10_R = log (BF10_R);
 
     % Create labels
     [I, J] = find (tril (true (q), -1));
@@ -865,9 +850,8 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
 
     % Assemble table-like cell array for correlations
     R_table = cat (1, ...
-     {'Correlation', 'r', 'CI_lower', 'CI_upper', 'BF10', 'lnBF10'}, ...
-     [labels(:), num2cell([R(:), R_CI_lower(:), R_CI_upper(:), ...
-                               BF10_R(:), lnBF10_R(:)])])';
+     { 'Correlation', 'CI_lower', 'CI_upper','Outcomes'}, ...
+     [num2cell([R(:), R_CI_lower(:), R_CI_upper(:)]), labels(:), ]);
 
   end
 
@@ -897,6 +881,8 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
                      '*************************************************\n'));
     fprintf ('\n Number of outcomes (q): %d\n', q);
     fprintf ('\n Design effect (Deff): %.3g\n', deff);
+    fprintf('\n Bootstrap resamples (nboot): %d\n', nboot);
+    fprintf('\n Minimized .632 bootstrap prediction error: %.6g\n', pred_err);
     if (deff == 1)
       fprintf (cat (2, '\n Bootstrap optimized ridge tuning constant', ...
                        ' (lambda): %.6g\n'), lambda);
@@ -931,14 +917,15 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
 
     % Correlations between outcomes
     if (q > 1)
-      fprintf (cat (2, '\n %.3g%% credible intervals and Bayes factors', ...
-                       ' for correlations between outcomes:\n'), ...
+      fprintf (cat (2, '\n %.3g%% credible intervals for', ...
+                       ' correlations between outcomes:\n'), ...
                        100* (1 - alpha));
-      fprintf (cat (2, '\n Correlation   CI_lower      CI_upper      ', ...
-                         'lnBF10        Outcomes\n'));
+      fprintf (' (Prior on Fisher''s z is flat/improper)\n')
+      fprintf (cat (2, '\n Correlation   CI_lower      CI_upper     ', ...
+                         ' Outcomes\n'));
       for i = 1:q*(q-1)*0.5
-        fprintf (' %#-+10.4g    %#-+10.4g    %#-+10.4g    %#-+10.4g    %s\n', ...
-                 R(i), R_CI_lower(i), R_CI_upper(i), lnBF10_R(i), labels{i});
+        fprintf (' %#-+10.4g    %#-+10.4g    %#-+10.4g    %s\n', ...
+                 R(i), R_CI_lower(i), R_CI_upper(i), labels{i});
       end
     end
 
@@ -947,6 +934,8 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
       fprintf (cat (2, '\n %.3g%% credible intervals and Bayes factors', ...
                        ' for regression coefficients:\n'), ...
                        100* (1 - alpha));
+      fprintf (cat (2, ' (Global prior contribution to posterior precision:', ... 
+                       ' %#.2f %%)\n'), prior_perc_ridge);
       for j = 1:q
         fprintf (cat (2, '\n Outcome %d:\n Coefficient   CI_lower      ', ...
                          'CI_upper      lnBF10        Prior\n'), j);
@@ -960,6 +949,8 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
       fprintf (cat (2, '\n %.3g%% credible intervals and Bayes factors', ...
                        ' for linear estimates:\n'), ...
                        100* (1 - alpha));
+      fprintf (cat (2, ' (Global prior contribution to posterior precision:', ... 
+                       ' %#.2f %%)\n'), prior_perc_ridge);
       for j = 1:q
         fprintf (cat (2, '\n Outcome %d:\n Estimate      CI_lower      ', ...
                          'CI_upper      lnBF10        Prior\n'), j);
@@ -1436,4 +1427,5 @@ end
 %! S1 = bootridge (Y, X, [], 100, 0.10, [], 1, 42);
 %! S2 = bootridge (Y, X, [], 100, 0.10, [], 2, 42);
 %! assert (all (size (S1.Sigma_Y_hat) == [2, 2]));
+
 

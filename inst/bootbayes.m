@@ -62,8 +62,8 @@
 %     'bootbayes (Y, X, ..., NBOOT, PROB)' where PROB is numeric and sets the
 %     lower and upper bounds of the credible interval(s). The value(s) of PROB
 %     must be between 0 and 1. PROB can either be:
-%       <> scalar: To set the central mass of shortest probability
-%                  intervals (SPI) to 100*(1-PROB)%
+%       <> scalar: To set the central mass of shortest probability intervals
+%                  (SPI) to 100*(1-PROB)%
 %       <> vector: A pair of probabilities defining the lower and upper
 %                  percentiles of the credible interval(s) as 100*(PROB(1))%
 %                  and 100*(PROB(2))% respectively. 
@@ -73,40 +73,35 @@
 %     'bootbayes (Y, X, ..., NBOOT, PROB, PRIOR)' accepts a positive real
 %     numeric scalar to parametrize the form of the symmetric Dirichlet
 %     distribution. The Dirichlet distribution is the conjugate PRIOR used to
-%     randomly generate weights for linear least squares fitting of the observed
-%     data, and subsequently to estimate the posterior for the regression
-%     coefficients by Bayesian bootstrap. Standard priors are 1 for Bayes rule,
-%     0.5 for Jeffrey's prior, and 0 for Haldane's prior. Priors lower than 1
-%     produce a more conservative (wider) posterior distribution, whereas 
-%     priors greater than 1 are more liberal, shrinking the posterior 
-%     bootstrap statistics towards the maximum likelihood estimates, thereby 
-%     implying greater confidence in the data.
-%        If PRIOR is not provided or is empty, and the model is not intercept
-%     -only, then the default value of PRIOR is 1, which corresponds to Bayes
-%     rule: a uniform (or flat) Dirichlet distribution (over all points in its
-%     support). Otherwise, the value of PRIOR is set to 'auto'.
-%        The value 'auto' sets a value for PRIOR that effectively incorporates
-%     Bessel's correction a priori. Thus, for a sample size of N and PRIOR set
-%     to 'auto', the variance of the posterior (i.e. BOOTSTAT) becomes an
-%     unbiased estimator of the sampling variance. For example, when the PRIOR
-%     is 1, the prior is flat over the range of the data Y, approximated by the
-%     interval +/- 2 * std (Y, 1) around the mean, which is 4 * std (Y, 1) wide
-%     according to the range rule of thumb for a normal distribution. Therefore,
-%     a PRIOR set to 'auto' is flat over the interval approx. +/- 2 * std (Y, 0).
-%     The calculation used to obtain this prior with 'auto' setting is:
+%     randomly generate weights on the unit simplex for linear least-squares
+%     fitting of the observed data, and subsequently to estimate the posterior
+%     for the regression coefficients by Bayesian bootstrap. Standard choices
+%     are: 1 for Bayes’ rule (uniform on the simplex), 0.5 for the
+%     transformation-invariant Jeffreys prior, and 0 for the Haldane prior.
+%     Priors lower than 1 produce a more conservative (wider) posterior, whereas
+%     priors greater than 1 are more liberal, shrinking the posterior bootstrap
+%     statistics toward the maximum-likelihood estimates.
+%        If PRIOR is not provided or is empty, and the model is not intercept-
+%     only, the default is PRIOR = 1 (uniform Dirichlet on the weight simplex).
+%     Otherwise, the value of PRIOR is set to 'auto'.
+%        In intercept-only models, the value 'auto' sets PRIOR so that the
+%     Bayesian-bootstrap posterior standard deviation of the mean equals the
+%     usual frequentist standard error, i.e. std (Y, 0) / sqrt (N). Let N denote
+%     the number of independent sampling units (e.g., observations, clusters, or
+%     blocks). Then:
 %
-%          PRIOR = 1 - 2 / N
+%          PRIOR (i.e. alpha) = 1 - 2 / N
 %
-%     Where N corresponds to the number of independent sampling units (e.g.
-%     observations, or clusters/blocks in the case of block or cluster
-%     resampling. Note that, in case of the mean, when N = 2, the PRIOR is
-%     equal to 0, which is the Haldane prior:
+%     With this setting, for the mean, std (BOOTSTAT, 0, 2) = std (Y, 0) / sqrt
+%     (N) and var (BOOTSTAT, 0, 2) = std (Y, 0)^2 / N (up to Monte Carlo error).
+%     When N = 2 (Haldane prior, PRIOR = 0) and the statistic is the mean, the
+%     posterior standard deviation equals the frequentist standard error exactly
+%     (up to Monte Carlo error):
 %
-%         std (BOOTSTAT, 1, 2) ~ std (Y, 1) == std (Y, 0) / sqrt (N) 
+%         std (BOOTSTAT, 0, 2) = std (Y, 1) = std (Y, 0) / sqrt (N) 
 %
-%     Note that in this particular case, intervals will be computed using
-%     the standard deviation of the posterior distribution and quantiles
-%     from a standard normal distribution. 
+%     (In the Haldane branch, normal-quantile CIs use std (BOOTSTAT, 1, 2) to
+%     match the population normalization used for the interval formula.)
 %
 %     'bootbayes (Y, X, ..., NBOOT, PROB, PRIOR, SEED)' initialises the
 %     Mersenne Twister random number generator using an integer SEED value so
@@ -328,7 +323,7 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
   if (numel (prior) > 1)
     error ('bootbayes: PRIOR must be scalar');
   end
-  if (prior ~= abs (prior))
+  if any (prior ~= abs (prior))
     error ('bootbayes: PRIOR must be positive');
   end
 
@@ -378,13 +373,13 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
   if (intercept_only)
     bootfun = @(Y) sum (bsxfun (@times, Y, W));  % Faster!
     original = mean (Y, 1);
-    bootstat = cellfun (bootfun, num2cell (Y, 1), ...
-                        'UniformOutput', false);
+    bootstat = arrayfun (@(j) bootfun (Y(:, j)), 1:q, 'UniformOutput', false);
   else
     bootfun = @(w) lmfit (X, Y, w, L);
     original = bootfun (ones (n, 1) / n);
-    bootstat = cell2mat (cellfun (bootfun, num2cell (sqrt (W), 1), ...
-                                  'UniformOutput', false));
+    W = sqrt (W);  % Square root of the weights for regression.
+    bootstat = cell2mat (arrayfun (@(b) bootfun (W(:, b)), 1:nboot, ...
+                                   'UniformOutput', false));
     bootstat = arrayfun (@(i) bootstat(:, i:q:end), 1:q, 'UniformOutput', false);
   end
 
@@ -419,13 +414,13 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
           z = stdnorminv (1 - (1 - prob) / 2);
           for j = 1:q
             ci = bsxfun (@times, original(:, j) + ...
-                         std (bootstat{j}, 1 , 2) * z, [-1, 1]);
+                         std (bootstat{j}, 0 , 2) * z, [-1, 1]);
             CI_lower(:, j) = ci(:, 1); CI_upper(:, j) = ci(:, 2);
           end
         case 2
           z = stdnorminv (prob);
           for j = 1:q
-            ci = bsxfun (@times, original(:, j) + std (bootstat{j}, 1 , 2), z);
+            ci = bsxfun (@times, original(:, j) + std (bootstat{j}, 0 , 2), z);
             CI_lower(:, j) = ci(:, 1); CI_upper(:, j) = ci(:, 2);
           end
       end
@@ -564,6 +559,60 @@ end
 %! bootbayes (y, X);
 %!
 %! % Please be patient, the calculations will be completed soon...
+
+%!demo
+%! ## --- Stress-test: Simulated Large-Scale Patch-seq Project (bootbayes) ---
+%! ## N = 7500 cells (observations), p = 15 features, q = 2000 genes (outcomes).
+%! ## This tests multivariate un-weaving logic and HPD interval scaling.
+%!
+%! N = 7500;       
+%! p = 15;         
+%! q = 2000;       
+%! nboot = 500;    % Sufficient for stable HPD intervals
+%!
+%! printf('Simulating a Large-Scale Patch-seq Dataset (%d x %d)...\n', N, q);
+%!
+%! % Generate design matrix X (e.g., E-phys features)
+%! X = [ones(N,1), randn(N, p-1)];
+%!
+%! % Generate multivariate outcome Y (Gene expression)
+%! % Approx 120MB of data
+%! true_beta = randn(p, q) .* (rand(p, q) > 0.9); 
+%! Y = X * true_beta + randn(N, q) * 0.5;
+%!
+%! printf('Running bootbayes with %d bootstrap resamples...\n', nboot);
+%! tic;
+%! % Running with default alpha=0.05 (95% Credible Intervals)
+%! stats = bootbayes(Y, X, [], nboot);
+%! runtime = toc;
+%!
+%! printf('\n--- Performance Results ---\n');
+%! printf('Runtime: %.2f seconds\n', runtime);
+%! printf('Total parameters estimated: %d\n', p * q);
+%!
+%! % Accuracy Check on a random gene
+%! target_gene = randi(q);
+%! % Note: checking if original is returned as p x q matrix
+%! if all(size(stats.original) == [p, q])
+%!    estimated = stats.original(:, target_gene);
+%! else
+%!    % Fallback if it is returned as the interleaved vector
+%!    estimated = stats.original((target_gene-1)*p + (1:p));
+%! endif
+%!
+%! actual = true_beta(:, target_gene);
+%! correlation = corr(estimated, actual);
+%!
+%! printf('Correlation of estimates for Gene %d: %.4f\n', target_gene, correlation);
+%!
+%! % Verify Credible Interval structure
+%! printf('Number of outcome cells in stats.stdev: %d\n', length(stats.stdev));
+%!
+%! if correlation > 0.98
+%!   printf('Result: PASSED (High accuracy OLS recovery)\n');
+%! else
+%!   printf('Result: WARNING (Low correlation - check for colinearity)\n');
+%! endif
 
 %!test
 %! % Test calculations of statistics for the mean

@@ -10,6 +10,7 @@
 % -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED)
 % -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED, TOL)
 % -- Function File: S = bootridge (Y, X, ...)
+% -- Function File: [S, P] = bootridge (Y, X, ...)
 %
 %      'bootridge (Y, X)' fits an empirical Bayes ridge regression model using
 %      a linear Normal (Gaussian) likelihood with an empirical Bayes normal
@@ -232,6 +233,9 @@
 %            of freedom df_t, and then back‑transformed. See CONDITIONAL VS 
 %            MARGINAL PRIORS and DETAIL below. Diagonal entries are undefined
 %            and not included.
+%
+%      '[S, P] = bootridge (Y, X, ...)' returns the diagonal matrix of ridge
+%       penalties.
 %
 %      DETAIL: The model implements an empirical Bayes ridge regression that
 %      simultaneously addresses the problems of multicollinearity, multiple 
@@ -461,7 +465,7 @@
 % Author: Andrew Charles Penn
 
 
-function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
+function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
 
   % Check the number of input arguments provided
   if (nargin < 2)
@@ -580,8 +584,8 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   end
 
   % Check the number of output arguments requested
-  if (nargout > 1)
-    error ('bootridge: Only 1 output argument can be requested.');
+  if (nargout > 2)
+    error ('bootridge: Only 2 output argument can be requested.');
   end
 
   % Check if running in Octave (else assume Matlab)
@@ -623,7 +627,7 @@ function S = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
     P(categor) = 1;
   end
 
-  % Convert the vector of penalties to a diaganol matrix
+  % Convert the vector of penalties to a diagonal matrix
   P = diag (P);
 
   % Objective function for lambda using .632 bootstrap prediction error.
@@ -1366,6 +1370,51 @@ end
 %! % Run bootridge with small bootstrap count
 %! bootridge (Y, X, [], 100, 0.10, [], 1, 321);
 %! % Please be patient, the calculations will be completed soon...
+
+%!demo
+%! ## --- Stress-test: Simulated Large-Scale Patch-seq Project (bootridge) ---
+%! ## N = 7500 cells, p = 15 features, q = 2000 genes.
+%! ## This tests memory handling and global lambda optimization.
+%!
+%! N = 7500;       
+%! p = 15;         
+%! q = 2000;       
+%! nboot = 100;    
+%!
+%! printf('Simulate Large-Scale Patch-seq Dataset (%d x %d)...\n', N, q);
+%!
+%! % Generate design matrix X (E-phys features)
+%! X = [ones(N,1), randn(N, p-1)];
+%!
+%! % Generate sparse multivariate outcome Y (Gene expression)
+%! % Approx 120MB of data
+%! true_beta = randn(p, q) .* (rand(p, q) > 0.9); 
+%! Y = X * true_beta + randn(N, q) * 0.5;
+%!
+%! printf('Running bootridge ...\n');
+%! tic;
+%! % Use TOL = 0.05 for faster convergence in demo
+%! S = bootridge(Y, X, [], nboot, 0.05, [], 1, 123, 0.05);
+%! runtime = toc;
+%!
+%! printf('\n--- Performance Results ---\n');
+%! printf('Runtime: %.2f seconds\n', runtime);
+%! printf('Optimized Lambda: %.6f\n', S.lambda);
+%! printf('Total Iterations: %d\n', S.iter);
+%!
+%! % Accuracy Check on a random gene
+%! target_gene = randi(q);
+%! estimated = S.Coefficient(:, target_gene); 
+%! actual = true_beta(:, target_gene);
+%! correlation = corr(estimated, actual);
+%!
+%! printf('Correlation of estimates for Gene %d: %.4f\n', target_gene, correlation);
+%!
+%! if correlation > 0.95
+%!   printf('Result: PASSED (High accuracy maintained at scale)\n');
+%! else
+%!   printf('Result: WARNING (Low correlation detected)\n');
+%! endif
 
 %!test
 %! % Basic functionality: univariate, intercept auto-add, field shapes

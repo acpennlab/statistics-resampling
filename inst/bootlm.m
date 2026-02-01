@@ -2091,7 +2091,7 @@ function AOVSTAT = bootanova (Y, X, DF, DFE, DEP, NBOOT, ALPHA, SEED, ...
             PVAL(j) = interp1 (x, P, F(j), 'linear', res_lim);
           end
         else
-          PVAL(j) = sum (BOOTF >= F(j)) / NBOOT;
+          PVAL(j) = max (sum (BOOTF >= F(j)) / NBOOT, res_lim);
         end
 
   end
@@ -2989,9 +2989,9 @@ end
 %! [stats, bootstat, aovstat] = bootlm (score, gender, 'display', 'off', ...
 %!                                'varnames', 'gender', 'seed', 1);
 %!
-%! assert (aovstat.PVAL(1), 0.2531417588571749, 1e-09);
-%! assert (stats.pval(2), 0.2434934955512797, 1e-09);
-%! assert (stats.fpr(2), 0.4832095599189747, 1e-09);
+%! assert (aovstat.PVAL(1), 0.2531253125312531, 1e-09);
+%! assert (stats.pval(2), 0.2434934955512803, 1e-09);
+%! assert (stats.fpr(2), 0.4832095599189749, 1e-09);
 %! % ttest2 (with 'vartype' = 'unequal') gives a p-value of 0.2501;
 
 %!test
@@ -3013,7 +3013,7 @@ end
 %! [stats, bootstat, aovstat] = bootlm (outcome, {time}, 'display', 'off', ...
 %!                                      'varnames', 'time', 'seed', 1);
 %!
-%! assert (aovstat.PVAL, 0.3135453842872482, 1e-09);
+%! assert (aovstat.PVAL, 0.3135313531353136, 1e-09);
 %! assert (stats.CI_lower(2), -3.686622727781613, 1e-09);
 %! assert (stats.CI_upper(2), 11.06662272778161, 1e-09);
 %!
@@ -3023,7 +3023,7 @@ end
 %!                                      'varnames', 'time', 'seed', 1, ...
 %!                                      'clustid', id);
 %! 
-%! assert (aovstat.PVAL, 0.01462936561813444, 1e-09);
+%! assert (aovstat.PVAL, 0.0146014601460146, 1e-09);
 %! assert (stats.CI_lower(2), 1.350448328146089, 1e-09);
 %! assert (stats.CI_upper(2), 6.029551671853904, 1e-09);
 
@@ -3041,11 +3041,11 @@ end
 %! [stats, bootstat, aovstat] = bootlm (strength, alloy, 'display', 'off', ...
 %!                                  'varnames', 'alloy', 'seed', 1);
 %!
-%! assert (aovstat.PVAL, 0.0006612573659321272, 1e-09);
-%! assert (stats.CI_lower(2), -10.17909151307657, 1e-09);
-%! assert (stats.CI_upper(2), -3.820908486923432, 1e-09);
-%! assert (stats.CI_lower(3), -7.462255988161777, 1e-09);
-%! assert (stats.CI_upper(3), -2.537744011838216, 1e-09);
+%! assert (aovstat.PVAL, 0.0006000600060006001, 1e-09);
+%! assert (stats.CI_lower(2), -10.17909151307662, 1e-09);
+%! assert (stats.CI_upper(2), -3.820908486923378, 1e-09);
+%! assert (stats.CI_lower(3), -7.462255988161762, 1e-09);
+%! assert (stats.CI_upper(3), -2.537744011838202, 1e-09);
 
 %!test
 %!
@@ -3066,7 +3066,7 @@ end
 %!                                      'clustid', subject);
 %!
 %! assert (aovstat.F, 0.7399328859060433, 1e-09);
-%! assert (aovstat.PVAL, 0.002591270965738637, 1e-09);
+%! assert (aovstat.PVAL, 0.0025002500250025, 1e-09);
 %! assert (stats.CI_lower(2), 1.249181883936326, 1e-09);
 %! assert (stats.CI_upper(2), 2.750818116063676, 1e-09);
 %! assert (stats.CI_lower(3), 2.523029362888475, 1e-09);
@@ -3120,13 +3120,13 @@ end
 %!                            'model', 'full', 'display', 'off', 'varnames', ...
 %!                            {'gender', 'degree'}, 'seed', 1);
 %!
-%! assert (aovstats.PVAL(1), 0.7549551110867991, 1e-09);   % Normal ANOVA: 0.747 
+%! assert (aovstats.PVAL(1), 0.7548754875487549, 1e-09);   % Normal ANOVA: 0.747 
 %! assert (aovstats.PVAL(2), 0.0001, 1e-09);               % Normal ANOVA: <.001 
-%! assert (aovstats.PVAL(3), 0.5682523759540602, 1e-09);   % Normal ANOVA: 0.524
-%! assert (stats.pval(2), 0.2203059381026674, 1e-09);
+%! assert (aovstats.PVAL(3), 0.5681568156815682, 1e-09);   % Normal ANOVA: 0.524
+%! assert (stats.pval(2), 0.2203059381026685, 1e-09);
 %! assert (stats.pval(3), 0.0001, 1e-09);
-%! assert (stats.pval(4), 0.5820694859231031, 1e-09);
-%! assert (stats.fpr(2), 0.4753158903896984, 1e-09);
+%! assert (stats.pval(4), 0.5820694859231045, 1e-09);
+%! assert (stats.fpr(2), 0.4753158903896988, 1e-09);
 %! assert (stats.fpr(3), 0.00249737757706675, 1e-09);
 %! assert (stats.fpr(4), 0.5, 1e-09);
 %!
@@ -3135,13 +3135,13 @@ end
 %!                            {'degree', 'gender'}, 'seed', 1);
 %!
 %! assert (aovstats.PVAL(1), 0.0001, 1e-09);               % Normal ANOVA: <.001 
-%! assert (aovstats.PVAL(2), 0.008925416728357902, 1e-09); % Normal ANOVA: 0.004
-%! assert (aovstats.PVAL(3), 0.5682523759540633, 1e-09);   % Normal ANOVA: 0.524
+%! assert (aovstats.PVAL(2), 0.008900890089008901, 1e-09); % Normal ANOVA: 0.004
+%! assert (aovstats.PVAL(3), 0.5681568156815682, 1e-09);   % Normal ANOVA: 0.524
 %! assert (stats.pval(2), 0.0001, 1e-09);
-%! assert (stats.pval(3), 0.2203059381026671, 1e-09);
-%! assert (stats.pval(4), 0.5820694859231046, 1e-09);
+%! assert (stats.pval(3), 0.2203059381026669, 1e-09);
+%! assert (stats.pval(4), 0.5820694859231036, 1e-09);
 %! assert (stats.fpr(2), 0.00249737757706675, 1e-09);
-%! assert (stats.fpr(3), 0.4753158903896983, 1e-09);
+%! assert (stats.fpr(3), 0.4753158903896982, 1e-09);
 %! assert (stats.fpr(4), 0.5, 1e-09);
 
 %!test
@@ -3196,12 +3196,12 @@ end
 %!                                    'varnames', {'diet', 'drug', 'feedback'});
 %!
 %! assert (aovstat.PVAL(1), 0.0001, 1e-09);
-%! assert (aovstat.PVAL(2), 0.0002067197629804064, 1e-09);
-%! assert (aovstat.PVAL(3), 0.0009568121264051686, 1e-09);
-%! assert (aovstat.PVAL(4), 0.06209029357187983, 1e-09);
-%! assert (aovstat.PVAL(5), 0.640165047080685, 1e-09);
-%! assert (aovstat.PVAL(6), 0.4361940558376746, 1e-09);
-%! assert (aovstat.PVAL(7), 0.03985480022699249, 1e-09);
+%! assert (aovstat.PVAL(2), 0.0002000200020002, 1e-09);
+%! assert (aovstat.PVAL(3), 0.0009000900090009001, 1e-09);
+%! assert (aovstat.PVAL(4), 0.06200620062006201, 1e-09);
+%! assert (aovstat.PVAL(5), 0.6401640164016401, 1e-09);
+%! assert (aovstat.PVAL(6), 0.4361436143614361, 1e-09);
+%! assert (aovstat.PVAL(7), 0.03980398039803981, 1e-09);
 
 %!test
 %!
@@ -3266,12 +3266,12 @@ end
 %!
 %! assert (aovstat.PVAL(1), 0.0001, 1e-09);
 %! assert (aovstat.PVAL(2), 0.0001, 1e-09);
-%! assert (aovstat.PVAL(3), 0.002223283800751925, 1e-09);
-%! assert (aovstat.PVAL(4), 0.01416608702637612, 1e-09);
-%! assert (stats.pval(6), 0.960547903298728, 1e-09);
-%! assert (stats.pval(7), 0.01418066878652797, 1e-09);
+%! assert (aovstat.PVAL(3), 0.0022002200220022, 1e-09);
+%! assert (aovstat.PVAL(4), 0.0141014101410141, 1e-09);
+%! assert (stats.pval(6), 0.9605479032987285, 1e-09);
+%! assert (stats.pval(7), 0.01418066878652906, 1e-09);
 %! assert (stats.fpr(6), 0.5, 1e-09);
-%! assert (stats.fpr(7), 0.1409314554632885, 1e-09);
+%! assert (stats.fpr(7), 0.1409314554632956, 1e-09);
 %!
 %! stats = bootlm (score, {age, exercise, treatment}, 'seed', 1, ...
 %!                            'model', [1 0 0; 0 1 0; 0 0 1; 0 1 1], ...
@@ -3279,12 +3279,12 @@ end
 %!                            'varnames', {'age', 'exercise', 'treatment'}, ...
 %!                            'dim', [2, 3], 'contrasts', 'anova');
 %!
-%! assert (stats.estimate(1), 86.9787857062843,1e-09)
-%! assert (stats.estimate(2), 86.9962428587431,1e-09)
-%! assert (stats.estimate(3), 73.2754755236922,1e-09)
-%! assert (stats.estimate(4), 88.5073652962921 ,1e-09)
-%! assert (stats.estimate(5), 88.6798510137784,1e-09)
-%! assert (stats.estimate(6), 83.02227960120982,1e-09)
+%! assert (stats.estimate(1), 86.97878570628433,1e-09)
+%! assert (stats.estimate(2), 86.99624285874316,1e-09)
+%! assert (stats.estimate(3), 73.27547552369222,1e-09)
+%! assert (stats.estimate(4), 88.50736529629216 ,1e-09)
+%! assert (stats.estimate(5), 88.67985101377843,1e-09)
+%! assert (stats.estimate(6), 83.02227960120979,1e-09)
 %!
 %! stats = bootlm (score, {age, exercise, treatment}, 'seed', 1, ...
 %!                            'model', [1 0 0; 0 1 0; 0 0 1; 0 1 1], ...
@@ -3293,11 +3293,11 @@ end
 %!                            'dim', [2, 3], 'posthoc', 'trt_vs_ctrl', ...
 %!                            'contrasts', 'anova');
 %!
-%! assert (stats.estimate(1), 0.01745715245881591,1e-09)
-%! assert (stats.estimate(2), -13.70331018259217,1e-09)
-%! assert (stats.estimate(3), 1.528579590007819,1e-09)
-%! assert (stats.estimate(4), 1.701065307494099,1e-09)
-%! assert (stats.estimate(5), -3.956506105074522,1e-09)
+%! assert (stats.estimate(1), 0.01745715245882812,1e-09)
+%! assert (stats.estimate(2), -13.70331018259211,1e-09)
+%! assert (stats.estimate(3), 1.528579590007827,1e-09)
+%! assert (stats.estimate(4), 1.701065307494097,1e-09)
+%! assert (stats.estimate(5), -3.956506105074538,1e-09)
 
 %!test
 %!
@@ -3430,5 +3430,5 @@ end
 %! [stats, bootstat, aovstat] = bootlm (data, {group}, 'seed', 1, ...
 %!                                      'display', 'off');
 %! 
-%! assert (aovstat.PVAL, 0.0003126737580895793, 1e-09);
+%! assert (aovstat.PVAL, 0.0003000300030003001, 1e-09);
 

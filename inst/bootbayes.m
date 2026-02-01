@@ -1,5 +1,5 @@
 % Performs Bayesian nonparametric bootstrap and calculates posterior statistics 
-% for the mean, or regression coefficients from a linear model.
+% for the mean(s) or regression coefficients of univariate or multivariate data.
 %
 %
 % -- Function File: bootbayes (Y)
@@ -18,14 +18,15 @@
 %     1999 bootstrap statistics, each representing the weighted mean(s) of the
 %     column vector (or column-major matrix), Y, using a vector of weights
 %     randomly generated from a symmetric Dirichlet distribution. The resulting
-%     bootstrap (or posterior [1,2]) distribution(s) is/are summarised with the
-%     following statistics printed to the standard output:
+%     bootstrap (or posterior [1,2]) distribution(s) is/are summarised for each
+%     column of Y (i.e. each outcome) with the following statistics printed to
+%     the standard output:
 %        - original: the mean(s) of the data column(s) of Y
 %        - bias: bootstrap bias estimate(s)
-%        - median: the median of the posterior distribution(s)
-%        - stdev: the standard deviation of the posterior distribution(s)
-%        - CI_lower: lower bound(s) of the 95% credible interval
-%        - CI_upper: upper bound(s) of the 95% credible interval
+%        - median: the median(s) of the posterior distribution(s)
+%        - stdev: the standard deviation(s) of the posterior distribution(s)
+%        - CI_lower: lower bound(s) of the 95% credible interval(s)
+%        - CI_upper: upper bound(s) of the 95% credible interval(s)
 %          By default, the credible intervals are shortest probability
 %          intervals, which represent a more computationally stable version
 %          of the highest posterior density interval [3].
@@ -36,7 +37,8 @@
 %     is a column of ones (i.e. intercept only) and thus the statistic computed
 %     reduces to the mean (as above). The statistics calculated and returned in
 %     the output then relate to the coefficients from the regression of Y on X.
-%     Y must be a column vector (not matrix) for regression.
+%     Y can be a column vector (for univariate regression) or a matrix (for
+%     multivariate regression).
 %
 %     'bootbayes (Y, X, CLUSTID)' specifies a vector or cell array of numbers
 %     or strings respectively to be used as cluster labels or identifiers.
@@ -110,12 +112,15 @@
 %     the design). Otherwise, L must have the same number of rows as the number
 %     of columns in X.
 %
-%     'STATS = bootbayes (...) returns a structure with the following fields:
-%     original, bias, median, stdev, CI_lower, CI_upper & prior.
+%     'STATS = bootbayes (...)' returns a structure where each field contains
+%     a matrix of size (p x q), where p is the number of predictors and q is
+%     the number of outcomes (columns in Y). Fields include: original, bias, 
+%     median, stdev, CI_lower, CI_upper and prior.
 %
-%     '[STATS, BOOTSTAT] = bootbayes (...)  also returns the a vector (or
-%     matrix) of bootstrap statistics (BOOTSTAT) calculated over the bootstrap
-%     resamples.
+%     '[STATS, BOOTSTAT] = bootbayes (Y, ...)' also returns the bootstrap
+%     statistics. If Y is a column vector, BOOTSTAT is a (p x nboot) matrix. 
+%     If Y is a matrix (q > 1), BOOTSTAT is a (1 x q) cell array where each
+%     cell contains the (p x nboot) matrix for that outcome.
 %
 %  Bibliography:
 %  [1] Rubin (1981) The Bayesian Bootstrap. Ann. Statist. 9(1):130-134
@@ -171,8 +176,7 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
   if (nargin < 1)
     error ('bootbayes: DATA must be provided')
   end
-  sz = size (Y);
-  n = sz(1);
+  [n, q] = size (Y);
 
   % Evaluate the design matrix
   if ( (nargin < 2) || (isempty (X)) )
@@ -189,16 +193,12 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
 
   % Calculate the number of parameters
   k = size (X, 2);
-  if ((k == 1) && (all (X == 1)) )
+  if ( (k == 1) && (all (X == 1)) )
     intercept_only = true;
-    p = sz(2);
+    p = 1;
     L = 1;
   else
     intercept_only = false;
-    if (sz(2) > 1) 
-      error (cat (2, 'bootbayes: Y must be a column vector if X does not', ... 
-                     ' define an intercept-only model'))
-    end
     % Evaluate hypothesis matrix (L)
     if ( (nargin < 8) || isempty (L) )
       % If L is not provided, set L to 1
@@ -371,51 +371,74 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
   % Compute bootstap statistics
   if (intercept_only)
     bootfun = @(Y) sum (bsxfun (@times, Y, W));  % Faster!
-    original = mean (Y, 1)';
-    bootstat = cell2mat (cellfun (bootfun, num2cell (Y, 1)', ...
-                                 'UniformOutput', false));
+    original = mean (Y, 1);
+    bootstat = cellfun (bootfun, num2cell (Y, 1), ...
+                        'UniformOutput', false);
   else
     bootfun = @(w) lmfit (X, Y, w, L);
     original = bootfun (ones (n, 1) / n);
     bootstat = cell2mat (cellfun (bootfun, num2cell (sqrt (W), 1), ...
                                   'UniformOutput', false));
+    bootstat = arrayfun (@(i) bootstat(:, i:q:end), 1:q, 'UniformOutput', false);
   end
 
+  % Initialize output structure
+  stats = struct;
+  stats.original = original;
+
   % Bootstrap bias estimation
-  bias = mean (bootstat, 2) - original;
+  stats.bias = cell2mat (arrayfun (@(j) mean (bootstat{j}, 2) - ...
+                         original(:, j), 1:q, 'UniformOutput', false));
+
+  % Central tendency of the bootstrap distribution
+  stats.median = cell2mat (arrayfun (@(j) median (bootstat{j}, 2), 1:q, ...
+                           'UniformOutput', false));
+
+  % Scale of the bootstrap distribution
+  stats.stdev = cell2mat (arrayfun (@(j) std (bootstat{j}, 0, 2), 1:q, ...
+                          'UniformOutput', false));
 
   % Compute credible intervals
-  ci = nan (p, 2);
+  CI_lower = nan (p, q);
   if (any (~ isnan (prob)))
     if (prior > 0)
-      ci = credint (bootstat, prob);
+      for j = 1:q
+        ci = credint (bootstat{j}, prob);
+        CI_lower(:, j) = ci(:, 1); CI_upper(:, j) = ci(:, 2);
+      end
     else
       stdnorminv = @(p) sqrt (2) * erfinv (2 * p - 1);
       switch nprob
         case 1
           z = stdnorminv (1 - (1 - prob) / 2);
-          ci = bsxfun (@times, original + std (bootstat, 1 , 2) * z, ...
-                       [-1, 1]);
+          for j = 1:q
+            ci = bsxfun (@times, original(:, j) + ...
+                         std (bootstat{j}, 1 , 2) * z, [-1, 1]);
+            CI_lower(:, j) = ci(:, 1); CI_upper(:, j) = ci(:, 2);
+          end
         case 2
           z = stdnorminv (prob);
-          ci = original + std (bootstat, 1 , 2) * z;
+          for j = 1:q
+            ci = bsxfun (@times, original(:, j) + std (bootstat{j}, 1 , 2), z);
+            CI_lower(:, j) = ci(:, 1); CI_upper(:, j) = ci(:, 2);
+          end
       end
     end
   end
+  stats.CI_lower = CI_lower;
+  stats.CI_upper = CI_upper;
 
-  % Prepare output arguments
-  stats = struct;
-  stats.original = original;
-  stats.bias = bias;
-  stats.median = median (bootstat, 2);
-  stats.stdev = std (bootstat, 1, 2);
-  stats.CI_lower = ci(:, 1);
-  stats.CI_upper = ci(:, 2);
+  % Attach the prior to the output structure
   stats.prior = prior;
+
+  % If Y is a single outcome, return bootstat as a matrix
+  if (q == 1)
+    bootstat = cell2mat (bootstat);
+  end
 
   % Print output if no output arguments are requested
   if (nargout == 0) 
-    print_output (stats, nboot, prob, prior, p, L, method, intercept_only);
+    print_output (stats, nboot, prob, prior, p, q, L, method, intercept_only);
   end
 
 end
@@ -447,7 +470,7 @@ function param = lmfit (X, y, w, L)
   % using the equivalent normal equation:
   %   b = pinv (X' * W * X) * (X' * W * y);
   % Where W is the diagonal matrix of weights (i.e. W = diag (w.^2))
-  b = pinv (bsxfun (@times, w, X)) * (w .* y);
+  b = pinv (bsxfun (@times, w, X)) * bsxfun (@times, w, y);
   param = L' * b;
 
 end
@@ -456,7 +479,7 @@ end
 
 % FUNCTION TO PRINT OUTPUT
 
-function print_output (stats, nboot, prob, prior, p, L, method, intercept_only)
+function print_output (stats, nboot, prob, prior, p, q, L, method, intercept_only)
 
     fprintf (cat (2, '\nSummary of Bayesian bootstrap estimates of bias', ...
                      ' and precision for linear models\n', ...
@@ -473,7 +496,7 @@ function print_output (stats, nboot, prob, prior, p, L, method, intercept_only)
       end
     end
     fprintf (' Resampling method: Bayesian %sbootstrap\n', method)
-    fprintf (' Prior: Symmetric Dirichlet distribution (a = %.3g)\n', prior)
+    fprintf (' Prior: Symmetric Dirichlet distribution (alpha = %.3g)\n', prior)
     fprintf (' Number of resamples: %u \n', nboot)
     if (~ isempty (prob) && ~ all (isnan (prob)))
       nprob = numel (prob);
@@ -491,14 +514,16 @@ function print_output (stats, nboot, prob, prior, p, L, method, intercept_only)
         fprintf (' Credible interval: %.3g%%\n', mass);
       end
     end
-    fprintf ('\nPosterior Statistics: \n');
-    fprintf (cat (2, ' original     bias         median       stdev', ... 
-                     '       CI_lower      CI_upper\n'));
-    for j = 1:p
-      fprintf (cat (2, ' %#-+10.4g   %#-+10.4g   %#-+10.4g   %#-10.4g', ...
-                       '  %#-+10.4g    %#-+10.4g\n'), ... 
-               [stats.original(j), stats.bias(j), stats.median(j), ...
-                stats.stdev(j), stats.CI_lower(j), stats.CI_upper(j)]);
+    for j = 1:q
+      fprintf ('\nPosterior statistics for outcome %d: \n', j);
+      fprintf (cat (2, ' original     bias         median       stdev', ... 
+                       '       CI_lower      CI_upper\n'));
+      for i = 1:p
+        fprintf (cat (2, ' %#-+10.4g   %#-+10.4g   %#-+10.4g   %#-10.4g', ...
+                         '  %#-+10.4g    %#-+10.4g\n'), ... 
+                 [stats.original(i, j), stats.bias(i, j), stats.median(i, j), ...
+                  stats.stdev(i, j), stats.CI_lower(i, j), stats.CI_upper(i, j)]);
+      end
     end
     fprintf ('\n');
 

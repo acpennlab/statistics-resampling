@@ -75,7 +75,12 @@
 %     distribution. The Dirichlet distribution is the conjugate PRIOR used to
 %     randomly generate weights for linear least squares fitting of the observed
 %     data, and subsequently to estimate the posterior for the regression
-%     coefficients by Bayesian bootstrap.
+%     coefficients by Bayesian bootstrap. Standard priors are 1 for Bayes rule,
+%     0.5 for Jeffrey's prior, and 0 for Haldane's prior. Priors lower than 1
+%     produce a more conservative (wider) posterior distribution, whereas 
+%     priors greater than 1 are more liberal, shrinking the posterior 
+%     bootstrap statistics towards the maximum likelihood estimates, thereby 
+%     implying greater confidence in the data.
 %        If PRIOR is not provided or is empty, and the model is not intercept
 %     -only, then the default value of PRIOR is 1, which corresponds to Bayes
 %     rule: a uniform (or flat) Dirichlet distribution (over all points in its
@@ -85,22 +90,23 @@
 %     to 'auto', the variance of the posterior (i.e. BOOTSTAT) becomes an
 %     unbiased estimator of the sampling variance. For example, when the PRIOR
 %     is 1, the prior is flat over the range of the data Y, approximated by the
-%     interval +/- 2 * std (Y, 1), which is 4 * std (Y, 1) wide according to
-%     the range rule of thumb for a normal distribution. Therefore, a PRIOR
-%     set to 'auto' is flat over the approximate interval +/- 2 * std (Y, 0).
-%     The calculation used for 'auto' is as follows:
+%     interval +/- 2 * std (Y, 1) around the mean, which is 4 * std (Y, 1) wide
+%     according to the range rule of thumb for a normal distribution. Therefore,
+%     a PRIOR set to 'auto' is flat over the interval approx. +/- 2 * std (Y, 0).
+%     The calculation used to obtain this prior with 'auto' setting is:
 %
 %          PRIOR = 1 - 2 / N
 %
-%        For block or cluster bootstrap, N corresponds to the number of blocks
-%     or clusters (i.e. the number of independent sampling units). When N = 2,
-%     the PRIOR is equal to 0, which is the Haldane prior, in which case:
+%     Where N corresponds to the number of independent sampling units (e.g.
+%     observations, or clusters/blocks in the case of block or cluster
+%     resampling. Note that, in case of the mean, when N = 2, the PRIOR is
+%     equal to 0, which is the Haldane prior:
 %
 %         std (BOOTSTAT, 1, 2) ~ std (Y, 1) == std (Y, 0) / sqrt (N) 
 %
 %     Note that in this particular case, intervals will be computed using
 %     the standard deviation of the posterior distribution and quantiles
-%     from a standard normal distribution.
+%     from a standard normal distribution. 
 %
 %     'bootbayes (Y, X, ..., NBOOT, PROB, PRIOR, SEED)' initialises the
 %     Mersenne Twister random number generator using an integer SEED value so

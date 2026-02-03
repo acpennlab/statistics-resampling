@@ -75,32 +75,51 @@
 %     distribution. The Dirichlet distribution is the conjugate PRIOR used to
 %     randomly generate weights on the unit simplex for linear least-squares
 %     fitting of the observed data, and subsequently to estimate the posterior
-%     for the regression coefficients by Bayesian bootstrap. Standard choices
-%     are: 1 for Bayes’ rule (uniform on the simplex), 0.5 for the
-%     transformation-invariant Jeffreys prior, and 0 for the Haldane prior.
-%     Priors lower than 1 produce a more conservative (wider) posterior, whereas
-%     priors greater than 1 are more liberal, shrinking the posterior bootstrap
-%     statistics toward the maximum-likelihood estimates.
-%        If PRIOR is not provided or is empty, and the model is not intercept-
-%     only, the default is PRIOR = 1 (uniform Dirichlet on the weight simplex).
-%     Otherwise, the value of PRIOR is set to 'auto'.
-%        In intercept-only models, the value 'auto' sets PRIOR so that the
-%     Bayesian-bootstrap posterior standard deviation of the mean equals the
-%     usual frequentist standard error, i.e. std (Y, 0) / sqrt (N). Let N denote
-%     the number of independent sampling units (e.g., observations, clusters, or
-%     blocks). Then:
+%     for the regression coefficients by Bayesian bootstrap and any derived 
+%     linear estimates or contrasts.
+%
+%     If PRIOR is not provided or is empty, the default value of PRIOR is
+%     'auto'. The behaviour of 'auto' depends on whether X is provided and
+%     whether the model contains slope coefficients.
+%
+%     If no X is provided, or in intercept-only models, the value 'auto'
+%     sets PRIOR so that the Bayesian-bootstrap posterior standard deviation
+%     of the mean equals the usual frequentist standard error, i.e. 
+%     std(Y,0) / sqrt(N). Here N denotes the number of independent sampling 
+%     units (e.g., observations, clusters, or blocks). Thus:
 %
 %          PRIOR (i.e. alpha) = 1 - 2 / N
 %
-%     With this setting, for the mean, std (BOOTSTAT, 0, 2) = std (Y, 0) / sqrt
-%     (N) and var (BOOTSTAT, 0, 2) = std (Y, 0)^2 / N (up to Monte Carlo error).
+%     With this setting, std (BOOTSTAT, 0, 2) = std (Y, 0) / sqrt (N) and
+%     var (BOOTSTAT, 0, 2) = std (Y, 0)^2 / N (up to Monte Carlo error).
 %     When N = 2 (Haldane prior, PRIOR = 0) and the statistic is the mean, the
 %     posterior standard deviation equals the frequentist standard error exactly
 %     (up to Monte Carlo error):
 %
-%         std (BOOTSTAT, 0, 2) = std (Y, 1) = std (Y, 0) / sqrt (N) 
+%         std (BOOTSTAT, 1, 2) = std (Y, 1) = std (Y, 0) / sqrt (N)
 %
-%     (In the Haldane branch, normal-quantile CIs use std (BOOTSTAT, 1, 2) to
+%     If X is a design matrix including slope predictor terms, the value
+%     'auto' generalizes the above by providing a global Bessel‑style
+%     correction matching the overall variance scale on average across
+%     coefficients. Thus:
+%
+%          PRIOR (i.e. alpha) = 1 - (tr(H) + 1) / N = 1 - (rank(X) + 1) / N
+%
+%     Here tr(H) (and equivalently rank(X)) is the effective model degrees of
+%     freedom, and N is the number of independent sampling units. Equivalently:
+%
+%          PRIOR (i.e. alpha) = 1 - (N - dfe + 1) / N
+%
+%     where dfe = N - rank(X) is the effective error degrees of freedom.
+%
+%     Alternative standard prior choices include: 1 for Bayes’ rule (uniform on
+%     the simplex), 0.5 for the transformation-invariant Jeffreys prior (for the
+%     Dirichlet weights), and 0 for the Haldane prior. Priors lower than 1 
+%     produce a more conservative (wider) posterior, whereas priors greater 
+%     than 1 are more liberal, shrinking the posterior bootstrap statistics 
+%     toward the maximum-likelihood estimates.
+%
+%     (For the Haldane prior, normal-quantile CIs use std(BOOTSTAT,1,2) to
 %     match the population normalization used for the interval formula.)
 %
 %     'bootbayes (Y, X, ..., NBOOT, PROB, PRIOR, SEED)' initialises the
@@ -130,7 +149,7 @@
 %  [3] Liu, Gelman & Zheng (2015). Simulation-efficient shortest probability
 %        intervals. Statistics and Computing, 25(4), 809–819. 
 %
-%  bootbayes (version 2024.05.17)
+%  bootbayes (version 2026.02.02)
 %  Author: Andrew Charles Penn
 %  https://www.researchgate.net/profile/Andrew_Penn/
 %
@@ -209,7 +228,7 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
       % Calculate number of parameters
       [m, p] = size (L);
       if (m ~= k)
-        error (cat (2, 'bootbayes: the number rows in L must be the same', ...
+        error (cat (2, 'bootbayes: the number of rows in L must be the same', ...
                        ' as the number of columns in X'))
       end
     end
@@ -217,7 +236,7 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
 
   % Check for missing data
   if (any (any ([isnan(X), isinf(X)], 2)))
-    error ('bootbayes: elements of X cannot not be NaN or Inf')
+    error ('bootbayes: elements of X cannot be NaN or Inf')
   end
   if (~ intercept_only)
     if (any (any ([isnan(Y), isinf(Y)], 2)))
@@ -299,22 +318,18 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
 
   % Evaluate or set prior
   if ( (nargin < 6) || (isempty (prior)) )
-    if (intercept_only)
-      prior = 'auto';
-    else
-      prior = 1; % Bayes flat/uniform prior
-    end
+    prior = 'auto';
   end
   if (~ isa (prior, 'numeric'))
     if (strcmpi (prior, 'auto'))
       % Automatic prior selection to produce a posterior whose variance is an
-      % unbiased estimator of the sampling variance
+      % unbiased estimator of the sampling variance (on average in the case of
+      % regression models)
       if (intercept_only)
         prior = 1 - 2 / N;
       else
-        warning (cat (2, 'bootbayes: PRIOR value ''auto'' not available', ...
-                         ' for this model. PRIOR reverting to 1.'))
-        prior = 1;
+        % If X is full rank, rank (X) = k
+        prior = max (0, 1 - (rank (X) + 1) / N); 
       end
     else
       error ('bootbayes: PRIOR must be numeric or ''auto''');
@@ -324,7 +339,7 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
     error ('bootbayes: PRIOR must be scalar');
   end
   if any (prior ~= abs (prior))
-    error ('bootbayes: PRIOR must be positive');
+    error ('bootbayes: PRIOR must be non-negative (>= 0)');
   end
 
   % Set random seed
@@ -396,11 +411,12 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
                            'UniformOutput', false));
 
   % Scale of the bootstrap distribution
-  stats.stdev = cell2mat (arrayfun (@(j) std (bootstat{j}, 0, 2), 1:q, ...
+  stats.stdev = cell2mat (arrayfun (@(j) std (bootstat{j}, 1, 2), 1:q, ...
                           'UniformOutput', false));
 
   % Compute credible intervals
   CI_lower = nan (p, q);
+  CI_upper = nan (p, q);
   if (any (~ isnan (prob)))
     if (prior > 0)
       for j = 1:q
@@ -413,14 +429,16 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
         case 1
           z = stdnorminv (1 - (1 - prob) / 2);
           for j = 1:q
-            ci = bsxfun (@times, original(:, j) + ...
-                         std (bootstat{j}, 0 , 2) * z, [-1, 1]);
+            sd = std (bootstat{j}, 1 , 2);
+            ci = bsxfun (@plus, original(:, j), 
+                         bsxfun (@times, [-1, 1], sd * z));
             CI_lower(:, j) = ci(:, 1); CI_upper(:, j) = ci(:, 2);
           end
         case 2
           z = stdnorminv (prob);
           for j = 1:q
-            ci = bsxfun (@times, original(:, j) + std (bootstat{j}, 0 , 2), z);
+            sd = std (bootstat{j}, 1 , 2);
+            ci = bsxfun (@plus, original(:, j), bsxfun (@times, sd, z));
             CI_lower(:, j) = ci(:, 1); CI_upper(:, j) = ci(:, 2);
           end
       end
@@ -439,7 +457,7 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
 
   % Print output if no output arguments are requested
   if (nargout == 0) 
-    print_output (stats, nboot, prob, prior, p, q, L, method, intercept_only);
+    print_out (stats, nboot, prob, prior, p, q, L, method, intercept_only);
   end
 
 end
@@ -480,7 +498,7 @@ end
 
 % FUNCTION TO PRINT OUTPUT
 
-function print_output (stats, nboot, prob, prior, p, q, L, method, intercept_only)
+function print_out (stats, nboot, prob, prior, p, q, L, method, intercept_only)
 
     fprintf (cat (2, '\nSummary of Bayesian bootstrap estimates of bias', ...
                      ' and precision for linear models\n', ...

@@ -134,39 +134,34 @@
 %
 %       <> Sets the prior for Bayesian bootstrap. Possible values are:
 %
-%             o scalar: A positive real numeric scalar to parametrize
-%                  the form of the symmetric Dirichlet distribution. The
-%                  Dirichlet distribution is the conjugate PRIOR used to
-%                  randomly generate weights for linear least squares fitting
-%                  of the observed data and subsequently to estimate the
-%                  posterior for the regression coefficients by nonparametric
-%                  Bayesian bootstrap.
+%             o scalar: A non-negative (>= 0) scalar that parametrizes the
+%                  symmetric Dirichlet used to generate weights for linear
+%                  least squares and the nonparametric Bayesian bootstrap
+%                  posterior.
 %
-%             o 'auto': Sets a value for PRIOR that effectively incorporates
-%                  Bessel's correction a priori such that the variance of the
-%                  posterior (i.e. of the rows of BOOTSTAT) becomes an unbiased
-%                  estimator of the sampling variance*. The calculation used for
-%                  'auto' is as follows:
-% 
-%                     PRIOR = 1 - 2 / N
-% 
-%                  For block or cluster bootstrap, N corresponds to the number
-%                  of blocks or clusters (i.e. the number of independent
-%                  sampling units).
+%             o 'auto' (default): Sets value(s) for PRIOR that effectively
+%                  incorporates Bessel's correction a priori such that the
+%                  variance of the posterior (i.e. of the rows of BOOTSTAT) 
+%                  becomes an unbiased estimator of the sampling variance*.
+%                  The bootlm function uses a dedicated prior for each linear
+%                  estimate. Please see the help documentation for the function 
+%                  'bootbayes' for more information about the prior [2].
+
+%     '[...] = bootlm (Y, GROUP, ..., 'method', 'bayesian', 'prior', PRIOR)'
 %
-%                  The 'auto' setting is recommended but is only available
-%                  for Bayesian bootstrap of the estimated marginal means and
-%                  for the posthoc tests (not the regression coefficients).
-%                  Note that in the case where PRIOR is set to 0, credible
-%                  intervals will be computed using the standard deviation of
-%                  the posterior distribution and quantiles from a standard
-%                  normal distribution.
+%       <> Sets the prior for Bayesian bootstrap. Possible values are:
 %
-%               The default value of PRIOR is the scalar: 1, which corresponds
-%               to Bayes rule: a uniform (or flat) Dirichlet distribution
-%               (over all points in its support). Please see the help
-%               documentation for the function 'bootbayes' for more information
-%               about the prior [2].
+%             o scalar: A non-negative (>= 0) scalar (Dirichlet concentration 
+%                 alpha) that parametrizes the symmetric Dirichlet used to
+%                 generate weights for linear least squares and the 
+%                 nonparametric Bayesian bootstrap posterior. (Note: alpha = 0 
+%                 is the Haldane case.)
+%
+%             o 'auto' (default): Applies a degrees-of-freedom style correction
+%                 so that the posterior variance (rows of BOOTSTAT) becomes an
+%                 unbiased estimator of sampling variance. bootlm uses a
+%                 dedicated prior for each linear estimate*. See 'bootbayes'
+%                 for the exact formulas and details [2].
 %
 %     '[...] = bootlm (Y, GROUP, ..., 'alpha', ALPHA)'
 %
@@ -477,7 +472,8 @@
 %     '[STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (...)' also returns
 %     a structure containing the design matrix of the predictors (X), the
 %     regression coefficients (b), the hypothesis matrix (L) and the outcome (Y)
-%     for the linear model.
+%     for the linear model. Also included is column vector (ID) of arbitrary
+%     numeric identifiers for the independent sampling units.
 %
 %  Bibliography:
 %  [1] Penn, A.C. statistics-resampling manual: `bootwild` function reference.
@@ -564,7 +560,7 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
     POSTHOC = 'none';
     STANDARDIZE = false;
     METHOD = 'wild';
-    PRIOR = 1;
+    PRIOR = 'auto';
     L = [];
     STATS = [];
     BOOTSTAT = [];
@@ -999,26 +995,26 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
     % intervals, not the original estimates. Possibly a bit biaised when
     % sample sizes are very unequal (?).
     if (isempty (DEP))
-      IC = (1:n)';
-      IA = IC;
+      ID = (1:n)';
+      IA = ID;
     else
       if (isscalar (DEP))
         % Blocks
         blocksz = DEP;
         G = fix (n / blocksz);
-        IC = (G + 1) * ones (n, 1);
-        IC(1:blocksz * G, :) = reshape (ones (blocksz, 1) * (1:G), [], 1);
-        [jnk, IA] = unique (IC, 'first');
+        ID = (G + 1) * ones (n, 1);
+        ID(1:blocksz * G, :) = reshape (ones (blocksz, 1) * (1:G), [], 1);
+        [jnk, IA] = unique (ID, 'first');
       else
         % Clusters
-        [jnk, IA, IC] = unique_stable (DEP);
-        if ( any (size (IC) ~= [n, 1]) )
+        [jnk, IA, ID] = unique_stable (DEP);
+        if ( any (size (ID) ~= [n, 1]) )
           error (cat (2, 'bootlm: CLUSTID must be a column vector with the', ... 
                          ' same number of rows as Y'))
         end
       end
     end
-    N = max (IC);
+    N = max (ID);
 
     % Use bootstrap methods to calculate statistics
     if isempty (DIM)
@@ -1120,7 +1116,7 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
       if (isempty (DEP))
         N_dim = n_dim;
       else
-        UC = unique_stable (cat (2, gid(:,DIM), IC), 'rows');
+        UC = unique_stable (cat (2, gid(:,DIM), ID), 'rows');
         N_dim = cellfun (@(u) sum (all (UC(:,1:Nd) == u, 2)), num2cell (U, 2));
       end
 
@@ -1405,7 +1401,7 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
 
     % Create MAT return value
     if (nargout > 4)
-      MAT = struct ('X', X, 'b', b, 'L', L, 'Y', Y);
+      MAT = struct ('X', X, 'b', b, 'L', L, 'Y', Y, 'ID', ID);
     end
 
     % Print table of model coefficients and make figure of diagnostic plots
@@ -1930,7 +1926,7 @@ end
 
 % FUNCTION THAT RETURNS UNIQUE VALUES IN THE ORDER THAT THEY FIRST APPEAR
 
-function [U, IA, IC, A] = unique_stable (A, varargin)
+function [U, IA, ID, A] = unique_stable (A, varargin)
 
   % Subfunction used for backwards compatibility
 
@@ -1972,10 +1968,10 @@ function [U, IA, IC, A] = unique_stable (A, varargin)
   % Create vector of numeric identifiers for unique values in A
   n = numel (IA);
   if iscell (A)
-    IC = sum (cell2mat (arrayfun (@(i) i * ismember (A, U(i,:)), ...
+    ID = sum (cell2mat (arrayfun (@(i) i * ismember (A, U(i,:)), ...
                         (1:n), 'UniformOutput', false)), 2);
   elseif isnumeric (A)
-    IC = sum (cell2mat (arrayfun (@(i) i * (all (bsxfun (@eq, A, U(i,:)), ...
+    ID = sum (cell2mat (arrayfun (@(i) i * (all (bsxfun (@eq, A, U(i,:)), ...
                         2)), (1:n), 'UniformOutput', false)), 2);
   end
 

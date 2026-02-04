@@ -579,16 +579,16 @@ end
 %! % Please be patient, the calculations will be completed soon...
 
 %!demo
-%! ## --- Stress-test: Simulated Large-Scale Patch-seq Project (bootbayes) ---
-%! ## N = 7500 cells (observations), p = 15 features, q = 2000 genes (outcomes).
-%! ## This tests multivariate un-weaving logic and HPD interval scaling.
+%! %% --- Stress-test: Simulated Large-Scale Patch-seq Project (bootbayes) ---
+%! %% N = 7500 cells (observations), p = 15 features, q = 2000 genes (outcomes).
+%! %% This tests multivariate un-weaving logic and HPD interval scaling.
 %!
 %! N = 7500;       
 %! p = 15;         
 %! q = 2000;       
 %! nboot = 500;    % Sufficient for stable HPD intervals
 %!
-%! printf('Simulating a Large-Scale Patch-seq Dataset (%d x %d)...\n', N, q);
+%! fprintf('Simulating a Large-Scale Patch-seq Dataset (%d x %d)...\n', N, q);
 %!
 %! % Generate design matrix X (e.g., E-phys features)
 %! X = [ones(N,1), randn(N, p-1)];
@@ -598,15 +598,15 @@ end
 %! true_beta = randn(p, q) .* (rand(p, q) > 0.9); 
 %! Y = X * true_beta + randn(N, q) * 0.5;
 %!
-%! printf('Running bootbayes with %d bootstrap resamples...\n', nboot);
+%! fprintf('Running bootbayes with %d bootstrap resamples...\n', nboot);
 %! tic;
 %! % Running with default alpha=0.05 (95% Credible Intervals)
 %! stats = bootbayes(Y, X, [], nboot);
 %! runtime = toc;
 %!
-%! printf('\n--- Performance Results ---\n');
-%! printf('Runtime: %.2f seconds\n', runtime);
-%! printf('Total parameters estimated: %d\n', p * q);
+%! fprintf('\n--- Performance Results ---\n');
+%! fprintf('Runtime: %.2f seconds\n', runtime);
+%! fprintf('Total parameters estimated: %d\n', p * q);
 %!
 %! % Accuracy Check on a random gene
 %! target_gene = randi(q);
@@ -621,16 +621,16 @@ end
 %! actual = true_beta(:, target_gene);
 %! correlation = corr(estimated, actual);
 %!
-%! printf('Correlation of estimates for Gene %d: %.4f\n', target_gene, correlation);
+%! fprintf('Correlation of estimates for Gene %d: %.4f\n', target_gene, correlation);
 %!
 %! % Verify Credible Interval structure
-%! printf('Number of outcome cells in stats.stdev: %d\n', length(stats.stdev));
+%! fprintf('Number of outcome cells in stats.stdev: %d\n', length(stats.stdev));
 %!
 %! if correlation > 0.98
-%!   printf('Result: PASSED (High accuracy OLS recovery)\n');
+%!   fprintf('Result: PASSED (High accuracy OLS recovery)\n');
 %! else
-%!   printf('Result: WARNING (Low correlation - check for colinearity)\n');
-%! endif
+%!   fprintf('Result: WARNING (Low correlation - check for colinearity)\n');
+%! end
 
 %!test
 %! % Test calculations of statistics for the mean

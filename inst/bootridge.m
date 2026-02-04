@@ -132,7 +132,12 @@
 %      * If sufficient parallel resources are available (four or more workers),
 %        the optimization uses a parallel k‑section search; otherwise, a serial
 %        golden‑section search is used. The tolerance TOL applies identically
-%        in both cases.
+%        in both cases. The benefit of parallel processing is most evident when
+%        NBOOT is very large. In GNU Octave, the number of processes can be 
+%        set by the user before running bootridge, for example, for 4 processes
+%        with the command:
+%
+%          setenv ('OMP_NUM_THREADS', '4')
 %
 %      'S = bootridge (Y, X, ...)' returns a structure containing posterior
 %      summaries including posterior means, credibility intervals, Bayes factors,
@@ -595,14 +600,21 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   % Check if we have parallel processing capabilities
   ncpus = 1;     % Default is serial processing
   if (isoctave)
+    %%% OCTAVE %%%
     software = pkg ('list');
     names = cellfun (@(S) S.name, software, 'UniformOutput', false);
     status = cellfun (@(S) S.loaded, software, 'UniformOutput', false);
     index = find (~ cellfun (@isempty, regexpi (names, '^parallel')));
     if ( (~ isempty (index)) && (logical (status{index})) )
-      ncpus = max (ncpus, nproc);
+      % Set ncpus manually through environmental variable, for example:
+      %   setenv ('OMP_NUM_THREADS', '4')
+      % It is optimal to set this to the number of physical cores, which will be
+      % different to the number of logical cores when hyperthreading is enabled. 
+      % This can improve performance by reducing parallel overheads.
+      ncpus = max (ncpus, nproc ('overridable'));
     end
   else
+    %%% MATLAB %%%
     try 
       pool = gcp ('nocreate');
       if (~ isempty (pool))
@@ -754,7 +766,7 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
                      ' degrees of freedom clamped at 1 degree of freedom.'));
   end
   critval = distinv (1 - alpha / 2, df_t); % Student's t distribution
-  %critval = stdnorminv (1 - alpha / 2);            % Use Normal z distribution
+  %critval = stdnorminv (1 - alpha / 2);    % Use Normal z distribution
 
   % Calculation of credibility intervals
   if (c < 1)
@@ -763,7 +775,8 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
     CI_lower = zeros (n, q);
     CI_upper = zeros (n, q);
     for j = 1:q
-      se_j = sqrt (diag (Sigma_Beta{j}));
+      % Calculation of posterior statistics for outcome j
+      se_j = sqrt (diag (Sigma_Beta{j})); % Standard deviation of the posterior
       CI_lower(:,j) = Beta(:,j) - critval .* se_j;
       CI_upper(:,j) = Beta(:,j) + critval .* se_j;
     end
@@ -1372,9 +1385,9 @@ end
 %! % Please be patient, the calculations will be completed soon...
 
 %!demo
-%! ## --- Stress-test: Simulated Large-Scale Patch-seq Project (bootridge) ---
-%! ## N = 7500 cells, p = 15 features, q = 2000 genes.
-%! ## This tests memory handling and global lambda optimization.
+%! %% --- Stress-test: Simulated Large-Scale Patch-seq Project (bootridge) ---
+%! %% N = 7500 cells, p = 15 features, q = 2000 genes.
+%! %% This tests memory handling and global lambda optimization.
 %!
 %! N = 7500;       
 %! p = 15;         
@@ -1391,16 +1404,16 @@ end
 %! true_beta = randn(p, q) .* (rand(p, q) > 0.9); 
 %! Y = X * true_beta + randn(N, q) * 0.5;
 %!
-%! printf('Running bootridge ...\n');
+%! fprintf('Running bootridge ...\n');
 %! tic;
 %! % Use TOL = 0.05 for faster convergence in demo
 %! S = bootridge(Y, X, [], nboot, 0.05, [], 1, 123, 0.05);
 %! runtime = toc;
 %!
-%! printf('\n--- Performance Results ---\n');
-%! printf('Runtime: %.2f seconds\n', runtime);
-%! printf('Optimized Lambda: %.6f\n', S.lambda);
-%! printf('Total Iterations: %d\n', S.iter);
+%! fprintf('\n--- Performance Results ---\n');
+%! fprintf('Runtime: %.2f seconds\n', runtime);
+%! fprintf('Optimized Lambda: %.6f\n', S.lambda);
+%! fprintf('Total Iterations: %d\n', S.iter);
 %!
 %! % Accuracy Check on a random gene
 %! target_gene = randi(q);
@@ -1408,13 +1421,13 @@ end
 %! actual = true_beta(:, target_gene);
 %! correlation = corr(estimated, actual);
 %!
-%! printf('Correlation of estimates for Gene %d: %.4f\n', target_gene, correlation);
+%! fprintf('Correlation of estimates for Gene %d: %.4f\n', target_gene, correlation);
 %!
 %! if correlation > 0.95
-%!   printf('Result: PASSED (High accuracy maintained at scale)\n');
+%!   fprintf('Result: PASSED (High accuracy maintained at scale)\n');
 %! else
-%!   printf('Result: WARNING (Low correlation detected)\n');
-%! endif
+%!   fprintf('Result: WARNING (Low correlation detected)\n');
+%! end
 
 %!test
 %! % Basic functionality: univariate, intercept auto-add, field shapes

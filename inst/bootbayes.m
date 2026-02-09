@@ -329,7 +329,7 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
         prior = 1 - 2 / N;
       else
         % If X is full rank, rank (X) = k
-        prior = max (0, 1 - (rank (X) + 1) / N); 
+        prior = max (0, 1 - (rank (X) + 1) / N);
       end
     else
       error ('bootbayes: PRIOR must be numeric or ''auto''');
@@ -430,7 +430,7 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
           z = stdnorminv (1 - (1 - prob) / 2);
           for j = 1:q
             sd = std (bootstat{j}, 1 , 2);
-            ci = bsxfun (@plus, original(:, j), 
+            ci = bsxfun (@plus, original(:, j), ...
                          bsxfun (@times, [-1, 1], sd * z));
             CI_lower(:, j) = ci(:, 1); CI_upper(:, j) = ci(:, 2);
           end
@@ -473,7 +473,9 @@ function param = lmfit (X, y, w, L)
   % inverse (pinv) to make it more robust to the situation where X is singular.
   % If optional arument w is provided, it should be equal to square root of the
   % weights we want to apply to the regression.
-  n = numel (y);
+  
+  [n, p] = size (X); % Get number of rows (n) and columns (p)
+
   if ( (nargin < 3) || isempty (w) )
     % If no weights are provided, create a vector of ones
     w = ones (n, 1);
@@ -489,11 +491,34 @@ function param = lmfit (X, y, w, L)
   % using the equivalent normal equation:
   %   b = pinv (X' * W * X) * (X' * W * y);
   % Where W is the diagonal matrix of weights (i.e. W = diag (w.^2))
-  b = pinv (bsxfun (@times, w, X)) * bsxfun (@times, w, y);
+  % Apply weights (Whitening)
+  Xw = bsxfun (@times, w, X);
+  yw = bsxfun (@times, w, y);
+  if (p > n)
+    % DUAL SOLVE
+    % More efficient when p > n. 
+    K = Xw * Xw';
+    [U, flag] = chol (K);        % Upper Cholesky factor of symmetric K
+    if (flag)
+      b = Xw' * (pinv (K) * yw); % Robust solve with pseudoinverse
+    else
+      b = Xw' * (U \ (U' \ yw)); % Fast solve by Cholesky decomposition
+    end
+  else
+    % PRIMAL SOLVE
+    % Standard approach for tall or square matrices
+    [U, flag] = chol (Xw' * Xw); % Upper Cholesky factor of symmetric X'*X
+    if (flag)
+      b = pinv (Xw) * yw;        % Robust solve with pseudoinverse
+    else
+      b = U \ (U' \ (Xw' * yw)); % Fast solve by Cholesky decomposition
+    end
+  end
+
+  % Compute and return the parameters (either linear estimates or coefficients)  
   param = L' * b;
 
 end
-
 %--------------------------------------------------------------------------
 
 % FUNCTION TO PRINT OUTPUT

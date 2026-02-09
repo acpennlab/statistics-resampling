@@ -122,22 +122,22 @@
 %      on the log10 scale. Hyperparameter optimization terminates when the width
 %      of the current bracket satisfies:
 %
-%          log10(lambda_high) − log10(lambda_low) < TOL.
+%          log10 (lambda_high) − log10 (lambda_low) < TOL.
 %
 %      Thus, TOL determines the relative (multiplicative) precision of lambda.
 %      The default value TOL = 0.005 corresponds to approximately a 1% change in
 %      lambda, which is typically well below the Monte Carlo noise of the .632
 %      bootstrap estimate of prediction error.
 %
-%      * If sufficient parallel resources are available (four or more workers),
+%      * If sufficient parallel resources are available (three or more workers),
 %        the optimization uses a parallel k‑section search; otherwise, a serial
 %        golden‑section search is used. The tolerance TOL applies identically
 %        in both cases. The benefit of parallel processing is most evident when
-%        NBOOT is very large. In GNU Octave, the number of processes can be 
-%        set by the user before running bootridge, for example, for 4 processes
-%        with the command:
+%        NBOOT is very large. In GNU Octave, the maximum number of workers used
+%        can be set by the user before running bootridge, for example, for three
+%        workers with the command:
 %
-%          setenv ('OMP_NUM_THREADS', '4')
+%          setenv ('OMP_NUM_THREADS', '3')
 %
 %      'S = bootridge (Y, X, ...)' returns a structure containing posterior
 %      summaries including posterior means, credibility intervals, Bayes factors,
@@ -227,6 +227,9 @@
 %
 %        o pred_err
 %            The minimized prediction error calculated using the optimal lambda.
+%            Note that pred_err calculation is based on the outcome variables
+%            (columns) in Y after internal standardization, and the predictors
+%            X after internal centering.
 %
 %        o R_table
 %            Matrix summarizing residual correlations (strictly lower-
@@ -646,24 +649,26 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   % Standardizing outcomes (YS) ensures equal weight across multivariate
   % dimensions
   z_score = @(A) bsxfun (@rdivide, bsxfun (@minus, A, mean (A)), std (A, 0));
+  XC = X; 
+  XC(:, 2:end) = bsxfun (@minus, X(:, 2:end), sum (X(:, 2:end), 1) / m);
   YS = z_score (Y);
   if ( any (isnan (YS(:)) | isinf (YS(:))) )
     error (cat (2, 'bootridge: Standardization requires outcomes to have', ...
                    ' nonzero variance.'));
   end
-  parsubfun = struct ('booterr632', @booterr632);
-  obj_func = @(lambda) parsubfun.booterr632 (YS, X, lambda, P, nboot, seed);
+  parsubfun = struct ('booterr632', @booterr632, 'lambda_eval', @lambda_eval);
+  obj_func = @(lambda) parsubfun.booterr632 (YS, XC, lambda, P, nboot, seed);
 
   % Search for the optimal lambda by .632 bootstrap prediction error
   try
-    smax = svds (X, 1);                  % returns the largest singular value
+    smax = svds (XC, 1);                  % returns the largest singular value
   catch
-    s = svd (X);
+    s = svd (XC);
     smax = s(1);
   end
   amin = log10 (smax^2 * eps);           % minimum a for well-conditioned system
   bmax = log10 (smax^2);                 % maximum b for well-conditioned system
-  if (ncpus < 4)
+  if (ncpus < 3)
     % Golden-section search (serial).
     [lambda, iter] = gss (obj_func, amin, bmax, tol);
   else
@@ -695,11 +700,16 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
 
   % Regression coefficient and the effective degrees of freedom for ridge
   % regression penalized using the optimized (and corrected) lambda
-  A = X' * X + lambda * P;
-  Beta = A \ (X' * Y);                          % n x q coefficient matrix
-  df_lambda = m  - trace (A \ (X' * X));        % equivalent to m - trace (H)
-  if (df_lambda < 1)
-    error ('bootridge: df_lambda < 1; check the model is correctly specified');
+  A = X' * X + lambda * P;       % Regularized normal equation matrix
+  [U, flag] = chol (A);          % Upper Cholesky factor of symmetric A
+  if (flag)
+    % Robust solve with pseudoinverse
+    Beta = pinv (A) * (X' * Y);                   % n x q coefficient matrix
+    df_lambda = m  - trace (pinv (A) * (X' * X)); % equivalent to m - trace (H)
+  else
+    % Fast solve by Cholesky decomposition
+    Beta = U \ (U' \ (X' * Y));                   % n x q coefficient matrix
+    df_lambda = m  - trace (U \ (U' \ (X' * X))); % Equivalent to m - trace (H)
   end
   df_lambda = max (df_lambda, 1);
 
@@ -723,7 +733,7 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
 
   % Posterior covariance (diagonal block) for the coefficients within outcome j;
   % Sigma_Beta{j} = Sigma_Y_hat(j,j) * invA
-  invA = A \ eye(n);
+  invA = A \ eye (n);
   Sigma_Beta = arrayfun (@(j) Sigma_Y_hat(j, j) * invA, (1 : q), ...
                         'UniformOutput', false);
 
@@ -996,12 +1006,12 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
 
 end
 
+
 %--------------------------------------------------------------------------
 
 %% FUNCTION FOR .632 BOOTSTRAP ESTIMATOR OF PREDICTION ERROR
 
 function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
-
 
   % This function computes Efron & Tibshirani’s .632 bootstrap prediction error
   % for a multivariate linear ridge/Tikhonov model. Loss is the per-observation
@@ -1009,62 +1019,129 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
   %       Q(y_i, yhat_i) = ||y_i - yhat_i||_2^2
   % Efron and Tibshirani (1993) An Introduction to the Bootstrap. New York, NY:
   %  Chapman & Hall. pg 247-252
-
-  % Calculate the number of outcomes (q > 1 for multivariate)
+  
+  % Calculate dimensions
   [n, q] = size (Y);
   p = size (X, 2);
 
-  % Regularization matrix
-  LP = lambda * P;
+  % Generate balanced bootstrap indices
+  BOOTSAM = boot (n, nboot, true, seed);
+  
+  % --- HYBRID STRATEGY SELECTION ---
+  % If p >  n, the Primal matrix (p x p) is bigger than the Dual matrix (n x n)
+  % If n >= p, the Primal matrix (p x p) is the same or smaller.
+  use_dual = (p > n);
 
-  % Balanced bootknife resampling indices (n x nboot). See boot() documentation.
-  % Bootstrap resample row indices.
-  BOOTSAM  = boot (n, nboot, true, seed);
+  % --- PRE-COMPUTATION PHASE ---
+  if (use_dual)
+      % DUAL SETUP: Prepare for Woodbury Solve (n x n inversion)
+      % We need the inverse of the diagonal penalty matrix (Prior Covariance).
+      P_vec = diag (P);
+      % Calculate inverse of P_vec, dropping unpenalized intercept (from K)
+      % YS columns are standardized so intercept is redundant for the prediction
+      % error objective anyway.
+      P_vec(1) = Inf;  % Intercept gets "infinite" prior precision (unpenalized)
+      P_inv_vec = 1 ./ P_vec; % Result: P_inv_vec(1) is exactly 0.0
+      % Pre-compute the Generalized Kernel: K = X * inv(P) * X'
+      XW = bsxfun (@times, X, sqrt (P_inv_vec)');
+      K  = XW * XW';
+  else
+      % PRIMAL SETUP: Prepare for Standard Solve (p x p inversion)
+      % Regularization matrix
+      LP = P;
+      LP(1:p+1:end) = lambda * LP(1:p+1:end); % Eq. to LP = lambda * P
+  end
 
-  % Perform calculations to enable per-case (pooled) averaging of squared
-  % Euclidean residuals.
-  SSE_OOB = 0; N_OOB  = 0;
+  % --- BOOTSTRAP LOOP ---
+  SSE_OOB = 0; 
+  N_OOB   = 0;
   for b = 1:nboot
-
-    % Get the bootstrap indices for resample b
+ 
+    % Get resampled indices for resample b
     i = BOOTSAM(:, b);
 
-    % Fit the ridge regression with the provided lambda value on each bootstrap
-    % and return the coefficients (p x q)
-    Beta = (X(i, :)' * X(i, :) + LP) \ (X(i, :)' * Y(i, :));
-
     % Find the indices of OOB observations for this bootstrap resample
-    OOBSAM = true(n,1);
-    OOBSAM(i) = false;
-    OOBSAM = find (OOBSAM);
+    o = true(n,1);
+    o(i) = false;
 
-    % Accumulate the sums of squared errors and number of  OOB observations
-    if (~isempty (OOBSAM))
-
-      % Predict the values of the OOB observations from the coefficients for
-      % for each of the q outcomes
-      PRED_OOB = X(OOBSAM, :) * Beta;
-
-      % Calculate the residuals of the OOB predictions for each of the outcomes
-      RESI_OOB = Y(OOBSAM, :) - PRED_OOB;
-
-      % Calculate and accumulate the per-observation squared Euclidean residuals
-      SSE_OOB = SSE_OOB + sum (sum (RESI_OOB.^2, 2));
-
-      % Calculate and accumulate number of OOB observations
-      N_OOB  = N_OOB  + numel (OOBSAM) ;
-
+    % Calculation of Beta conditional on data dimenions
+    if (use_dual)
+        % DUAL (WOODBURY) SOLVE (Fast for p > n)
+        % Solve the n x n system without the intercept
+        Ki = K(i, i);                   % Bootstrap sample of K; Ki is symmetric
+        mk = sum (Ki, 2) / n;           % mk = row means = column means (vector)
+        gm = sum (mk) / n;              % gm = grand mean of Ki (scalar)
+        KCi = bsxfun (@minus, Ki, mk);  % Subtracts mk from every row
+        KCi = bsxfun (@minus, KCi, mk');% Subtracts mk' from every column
+        KCi = KCi + gm;                 % KCi is Ki but centered
+        Yi = Y(i, :);                   % Bootstrap sample of Y
+        my = sum (Yi, 1) / n;           % my is mean of Yi
+        YCi = bsxfun (@minus, Yi, my);  % YCi is Yi but centered
+        KCi(1:n+1:end) = KCi(1:n+1:end) + lambda;   % Eq. to + lamda * eye (n)
+        [U, flag] = chol (KCi);         % Upper Cholesky factor of symmetric KCi
+        if (flag)
+          Alpha = pinv (KCi) * YCi;     % Robust solve with pseudoinverse
+        else
+          Alpha = U \ (U' \ YCi);       % Fast solve by Cholesky decomposition
+        end
+        Ko = K(o, i);                   % OOB Prediction
+        mo = sum (Ko, 2) / sum (o);     % mo = row means of Ko
+        KCo = bsxfun (@minus, Ko, mo);  % Subtracts mo from every row
+        KCo = bsxfun (@minus, KCo, mk');% Subtracts mk' from every column
+        KCo = KCo + gm;                 % KCo is Ko but centered
+        % Predict the values of the OOB observations from the kernel
+        PRED_OOB = bsxfun (@plus, KCo * Alpha, my); % Add back local intercept
+    else
+        % PRIMAL (STANDARD) SOLVE (Fast for n >= p)
+        % Primal solve: (p x p)
+        A = (X(i, :)' * X(i, :) + LP);  % Regularized normal equation matrix
+        [U, flag] = chol (A);           % Upper Cholesky factor of symmetric A
+        if (flag)
+          Beta = pinv (A) * (X(i, :)' * Y(i, :)); % Robust solve
+        else
+          Beta = U \ (U' \ (X(i, :)' * Y(i, :))); % Fast solve
+        end
+        % Predict the values of the OOB observations from the coefficients for
+        % for each of the q outcomes
+        PRED_OOB = X(o, :) * Beta;
     end
+
+    % Calculate the residuals of the OOB predictions for each of the outcomes
+    RESI_OOB = Y(o, :) - PRED_OOB;
+
+    % Calculate and accumulate the per-observation squared Euclidean residuals
+    SSE_OOB = SSE_OOB + sum (RESI_OOB(:).^2); % Eq. to sum(sum(RESI_OOB.^2,2))
+
+    % Calculate and accumulate number of OOB observations
+    N_OOB  = N_OOB + sum (o) ;
 
   end
 
-  % Calculate a simple estimate of prediction error (S_ERR) 
+  % Calculate pooled OOB error estimate
   S_ERR = SSE_OOB / N_OOB;
 
   % Apparent error in resamples (A_ERR)
-  Beta_obs = (X' * X + LP) \ (X' * Y);
-  resi = Y - X * Beta_obs;
-  A_ERR = sum (sum (resi.^2, 2)) / n;
+  % Re-fit on full data using the selected efficient method
+  if (use_dual)
+    Kr = K; Kr(1:n+1:end) = Kr(1:n+1:end) + lambda;  % Regularized kernel
+    [U, flag] = chol (Kr);              % Upper Cholesky factor of symmetric Kr
+    if (flag)
+      Alpha_obs = pinv (Kr) * Y;        % Robust solve with pseudoinverse
+    else
+      Alpha_obs = U \ (U' \ Y);         % Fast solve by Cholesky decomposition
+    end
+    Beta_obs  = P_inv_vec .* (X' * Alpha_obs);
+  else
+    A = X' * X + LP;                    % Regularized normal equation matrix
+    [U, flag] = chol (A);               % Upper Cholesky factor of symmetric A
+    if (flag)
+      Beta_obs = pinv (A) * (X' * Y);   % Robust solve with pseudoinverse
+    else
+      Beta_obs = U \ (U' \ (X' * Y));   % Fast solve by Cholesky decomposition
+    end
+  end
+  RESI = Y - X * Beta_obs;
+  A_ERR = sum (RESI(:).^2) / n;
 
   % Optimism in apparent error (OPTIM)
   OPTIM = .632 * (S_ERR - A_ERR);
@@ -1083,8 +1160,12 @@ function [lambda, iter] = gss (f, a, b, tol)
   % After initialization, golden-section search only requires a single function
   % evaluation per iteration.
   % Algorithm based on https://en.wikipedia.org/wiki/Golden-section_search
+
+  % Initialization
   invphi = (sqrt (5) - 1) / 2;
   iter = 0;
+
+  % Start iterative optimization
   while ((b - a) > tol)
     if (iter < 1)
       c = b - (b - a) * invphi;
@@ -1105,6 +1186,8 @@ function [lambda, iter] = gss (f, a, b, tol)
     end
     iter = iter + 1;
   end
+
+  % Calculate return value
   lambda = 10^((b + a)/2);
 
 end
@@ -1116,22 +1199,46 @@ end
 function [lambda, iter] = kss (parsubfun, a, b, tol, k, isoctave)
 
   % Parallel k-section search. 
-  % Implicit computational efficiency for even k, which prevents wasteful
-  % evaluation of the same lambda twice between iterations.
-  k = max (2, 2 * fix (0.5 * k));
+
+  % Make k odd
+  k = k - 1 + mod (k, 2);
+
+  % Initialization
   iter = 0;
+  c = 0;
+  fxc = Inf;
+
+  % Start iterative optimization
   while ((b - a) > tol)
+
+    % Create vector of lambda values x
     p  = arrayfun (@(i) a + i / (k + 1) * (b - a), 1:k);
     x = 10.^p;
+
+    % Perform function evaluations (skipping the middle value when iter > 0)
     if (isoctave)
-      fx = pararrayfun (k, @(x) parsubfun.obj_func (x), x);
+      fx = pararrayfun (k, @(i) parsubfun.lambda_eval (x, i, c, fxc, ...
+                                                       parsubfun), 1:k);
     else
       fx = nan (1, k);
       parfor i = 1:k
-        fx(i) = parsubfun.obj_func (x(i));
+        if (i == c)
+          fx(i) = fxc;
+        else
+          fx(i) = parsubfun.obj_func(x(i));
+        end
       end
     end
-    [jnk, m] = min (fx);
+
+    % Check for "Flatness" of the objective function across the search point
+    if (max (fx) - min (fx) < eps)
+      break
+    end
+
+    % Index of element with the minimum value of f(x)
+    [fxc, m] = min (fx);
+
+    % Boundary updates
     if (m == 1)
       b = p(2);
     elseif (m == k)
@@ -1139,9 +1246,28 @@ function [lambda, iter] = kss (parsubfun, a, b, tol, k, isoctave)
     else
       a = p(m - 1); b = p(m + 1);
     end
+    c = (k + 1) / 2;     % Index at the centre of the search
     iter = iter + 1;
+
   end
+
+  % Calculate return value
   lambda = 10^((b + a)/2);
+
+end
+
+%--------------------------------------------------------------------------
+
+function fx = lambda_eval (x, i, c, fxc, parsubfun)
+
+    % Helper function for kss for conditional evaluate of a vactor (x) of lambda
+    % If i equals c use fxc, otherwise evaluate f(x(i))
+    % where f is parsubfun.obj_func()
+    if (i == c)
+      fx = fxc;
+    else
+      fx = parsubfun.obj_func(x(i));
+    end
 
 end
 
@@ -1324,21 +1450,22 @@ end
 %! % Fit model with cluster-based resampling. We are using Bayesian bootstrap
 %! % using 'auto' prior, which effectively applies Bessel's correction to the
 %! % variance of the bootstrap distribution for the contrasts (trt_vs_ctrl).
+%! % Use 'treatment' coding and return regression coefficients since our
+%! % intention is to use the posterior distributions from bayesian bootstrap
+%! % to calculate the design effect.
 %! [STATS, BOOTSTAT, AOVSTAT, PREDERR, MAT] = bootlm (data, {group}, ...
 %!      'clustid', clustid, 'seed', 1, 'display', 'on', 'contrasts', ...
-%!      'helmert', 'method', 'bayes', 'prior', 'auto', 'dim', 1, ...
-%!      'posthoc', 'trt_vs_ctrl');
+%!      'treatment', 'method', 'bayes', 'prior', 'auto');
 %!
 %! % Fit a cluster-robust empirical Bayes model
-%! g = max (accumarray (clustid(:), 1, [], @sum));     % g is max. cluster size
-%! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L, g); % Upperbound DEFF is g
+%! g = max (accumarray (clustid(:), 1, [], @sum));  % g is max. cluster size
+%! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, [], g); % Upperbound DEFF is g
 %!
 %! % Or we can get a obtain the design effect empirically using resampling.
 %! % We already fit the model accounting for clustering, now lets fit it
-%! % under I.I.D. (i.e. without clustering)
+%! % under I.I.D. (i.e. without clustering). As above, use 'treatment' coding.
 %! [STATS_SRS, BOOTSTAT_SRS] = bootlm (data, {group}, 'seed', 1, 'display', ...
-%!      'off', 'contrasts', 'helmert', 'method', 'bayes', 'dim', 1, ...
-%!      'posthoc', 'trt_vs_ctrl');
+%!      'off', 'contrasts', 'treatment', 'method', 'bayes');
 %!
 %! % Empirically calculate the design effect averaged over the variance of
 %! % of the contrasts we are interested in
@@ -1350,9 +1477,9 @@ end
 %! DEFF = mean (deffcalc (BOOTSTAT, BOOTSTAT_SRS)) 
 %! 
 %! % Fit a cluster-robust empirical Bayes model
-%! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L, DEFF);
+%! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, [], DEFF);
 %!
-%! % Note: Using the empirical DEFF (~3.5) instead of the upper-bound (4.0) 
+%! % Note: Using the empirical DEFF (~1.5) instead of the upper-bound (4.0) 
 %! % recovers inferential power, as seen by the higher Bayes Factor (lnBF10) 
 %! % and narrower credible intervals.
 
@@ -1386,48 +1513,185 @@ end
 
 %!demo
 %! %% --- Stress-test: Simulated Large-Scale Patch-seq Project (bootridge) ---
-%! %% N = 7500 cells, p = 15 features, q = 2000 genes.
+%! %% N = 7500 cells
+%! %% p = 15 features
+%! %% q = 2000 genes
 %! %% This tests memory handling and global lambda optimization.
 %!
-%! N = 7500;       
-%! p = 15;         
-%! q = 2000;       
-%! nboot = 100;    
+%! N = 7500;
+%! p = 15;
+%! q = 2000;
+%! nboot = 100;
 %!
-%! printf('Simulate Large-Scale Patch-seq Dataset (%d x %d)...\n', N, q);
+%! % Set random seeds for the simulation
+%! rand ('seed', 123);
+%! randn ('seed', 123);
+%!
+%! fprintf ('Simulate Large-Scale Patch-seq Dataset (%d x %d)...\n', N, q);
 %!
 %! % Generate design matrix X (E-phys features)
 %! X = [ones(N,1), randn(N, p-1)];
 %!
 %! % Generate sparse multivariate outcome Y (Gene expression)
 %! % Approx 120MB of data
-%! true_beta = randn(p, q) .* (rand(p, q) > 0.9); 
-%! Y = X * true_beta + randn(N, q) * 0.5;
+%! true_beta = randn (p, q) .* (rand (p, q) > 0.9);
+%! Y = X * true_beta + randn (N, q) * 0.5;
 %!
 %! fprintf('Running bootridge ...\n');
 %! tic;
 %! % Use TOL = 0.05 for faster convergence in demo
-%! S = bootridge(Y, X, [], nboot, 0.05, [], 1, 123, 0.05);
+%! S = bootridge (Y, X, [], nboot, 0.05, [], 1, 123, 0.05);
 %! runtime = toc;
 %!
-%! fprintf('\n--- Performance Results ---\n');
-%! fprintf('Runtime: %.2f seconds\n', runtime);
-%! fprintf('Optimized Lambda: %.6f\n', S.lambda);
-%! fprintf('Total Iterations: %d\n', S.iter);
+%! fprintf ('\n--- Performance Results ---\n');
+%! fprintf ('Runtime: %.2f seconds\n', runtime);
+%! fprintf ('Optimized Lambda: %.6f\n', S.lambda);
+%! fprintf ('Total Iterations: %d\n', S.iter);
 %!
 %! % Accuracy Check on a random gene
-%! target_gene = randi(q);
-%! estimated = S.Coefficient(:, target_gene); 
+%! target_gene = ceil (rand * q);
+%! estimated = S.Coefficient(:, target_gene);
 %! actual = true_beta(:, target_gene);
-%! correlation = corr(estimated, actual);
+%! correlation = corr (estimated, actual);
 %!
-%! fprintf('Correlation of estimates for Gene %d: %.4f\n', target_gene, correlation);
+%! fprintf ('Correlation of estimates for Gene %d: %.4f\n', ...
+%!          target_gene, correlation);
+
+%!demo
+%! %% --- Stress-test: Large-Scale Differential Gene Expression (DGE) Simulation ---
+%! %% Scenario: Bulk RNA-seq Case-Control Study (e.g., Disease vs. Healthy)
+%! %% N = 300 samples (e.g., 150 Patient / 150 Control)
+%! %% p = 50 covariates (e.g., 1 Group Indicator + 49 Technical/PEER factors)
+%! %% q = 15000 genes (Simultaneously modeled outcomes)
+%! %%
+%! %% This demo evaluates the multivariate efficiency of bootridge across
+%! %% the typical protein-coding transcriptome size, testing memory handling
+%! %% and the speed of global lambda optimization.
 %!
-%! if correlation > 0.95
-%!   fprintf('Result: PASSED (High accuracy maintained at scale)\n');
-%! else
-%!   fprintf('Result: WARNING (Low correlation detected)\n');
+%! % 1. Setup Dimensions
+%! N = 300;      % Total biological samples (Bulk RNA-seq)
+%! p = 50;       % 1 Experimental Group + technical covariates (Age, RIN, Batch)
+%! q = 15000;    % Total Genes analyzed in this "chunk"
+%! nboot = 100;  % Number of bootstrap resamples
+%! % Set random seeds for the simulation
+%! rand ('seed', 123);
+%! randn ('seed', 123);
+%!
+%! fprintf (cat (2, 'Simulating DGE Dataset: %d samples, %d genes, %d ', ...
+%!                  'covariates...\n'), N, q, p);
+%!
+%! % 2. Generate Design Matrix X
+%! % Column 1: Intercept
+%! % Column 2: Group Indicator (0 = Control, 1 = Case)
+%! % Columns 3-p: Random technical noise (Covariates/PEER factors)
+%! Group = [zeros(N/2, 1); ones(N/2, 1)];
+%! Covariates = randn (N, p-2);
+%! X = [ones(N, 1), Group, Covariates];
+%!
+%! % 3. Define Biological Signal (The "True" Log-Fold Changes)
+%! % We simulate a realistic DGE profile:
+%! % 10% of genes are differentially expressed (hits).
+%! true_beta = zeros (p, q);
+%! sig_genes = ceil (rand (1, round (q * 0.10)) * q);
+%! true_beta(2, sig_genes) = (randn (1, length (sig_genes)) * 2); % Group effect
+%!
+%! % 4. Generate Expression Matrix Y (Log2 TPM / Counts)
+%! % Baseline + Group Effect + Gaussian noise.
+%! Baseline = 5 + randn (1, q);
+%! Y = repmat (Baseline, N, 1) + X * true_beta + randn (N, q) * 1.2;
+%!
+%! fprintf ('Running Multivariate bootridge (Shrinkage shared across genes)...\n');
+%!
+%! tic;
+%! % CATEGOR = 2: Treats the Group column as categorical (no variance scaling).
+%! % SEED = 123: Ensures reproducible bootstrap sampling.
+%! % TOL = 0.05: Convergence tolerance for the golden section search.
+%! S = bootridge (Y, X, 2, nboot, 0.05, [], 1, 123, 0.05);
+%! runtime = toc;
+%!
+%! % 5. Display Performance Results
+%! fprintf ('\n--- Performance Results ---\n');
+%! fprintf ('Runtime: %.2f seconds\n', runtime);
+%! fprintf ('Optimized Lambda: %.6f\n', S.lambda);
+%!
+%! % 6. Accuracy Check
+%! % Compare estimated Beta (Group Effect) against the Ground Truth Fold-Changes
+%! estimated_fc = S.Coefficient(2, :);
+%! true_fc = true_beta(2, :);
+%! correlation = corr (estimated_fc', true_fc');
+%!
+%! fprintf ('Correlation of Fold-Changes across %d genes: %.4f\n', ...
+%!          q, correlation);
+
+%!demo
+%! %% --- Stress-test: High-p Voxel-wise Neural Encoding Simulation ---
+%! %% Scenario: Reconstructing Visual Stimuli from fMRI BOLD signals
+%! %% N = 500 volumes (samples), p = 8000 voxels, q = 1 stimulus feature
+%! %% This demo requires the signal package in octave
+%!
+%! % 1. Setup Dimensions
+%! N = 500; p = 8000; q = 1; nboot = 200;
+%! rand ('seed', 123); randn ('seed', 123);
+%! fprintf('Simulating fMRI Encoding: %d volumes, %d voxels...\n', N, p);
+%!
+%! % 2. Generate Design Matrix X (The Voxels)
+%! %    Spatial correlation between voxels (columns) and time points (rows)
+%! X_raw = randn (N, p-1);
+%! X = [ones(N, 1), filter([0.5 1 0.5], 1, X_raw, [], 2)];
+%! X(:,2:end) = filter ([0.1, 0.4, 0.9, 1, 0.6, 0.2], 1, X(:,2:end), [], 1);
+%!
+%! % 3. Define the "Neural Code" (True Weights)
+%! true_beta_sparse = zeros (p, q);                       % Initialise
+%! active_voxels = 1 + ceil (rand (1, 25) * (p - 1));     % 50 spatial clusters
+%! true_beta_sparse(active_voxels) = randn (25, 1) * 100; % Active voxels
+%! kernel = [0.05 0.1 0.4 0.8 1 0.8 0.4 0.1 0.05];        % Smoothing kernel
+%! true_beta = filter(kernel, 1, true_beta_sparse);       % Smooth active voxels
+%!
+%! % 4. Generate Outcome Y (The Stimulus)
+%! % Signal from smoothed clusters + Gaussian noise
+%! Y = X * true_beta + randn (N, q);
+%!
+%! % 5. Estimate Design Effect (Deff) to account for serial dependence
+%! % We use the autocorrelation of Y to estimate the variance inflation factor
+%! try
+%!   info = ver;
+%!   isoctave = any (ismember ({info.Name}, 'Octave'));
+%!   if (isoctave)
+%!     pkg load signal;
+%!   end
+%!   [r, lags] = xcov (Y - mean(Y), 10, 'coeff');
+%!   Deff = 1 + 2 * sum(r(lags > 0));
+%!   fprintf ('Estimated Design Effect (Deff): %.3f\n', Deff);
+%! catch
+%!   Deff = 1;
 %! end
+%!
+%! % 6. Run bootridge
+%! fprintf ('Running bootridge (Global Lambda Optimization)...\n');
+%! tic;
+%! % Run the bootridge function
+%! S = bootridge (Y, X, [], nboot, 0.05, [], Deff, 123, 0.05);
+%! runtime = toc;
+%!
+%! % 7. Performance Results
+%! estimated_beta = S.Coefficient;
+%! correlation = corr (estimated_beta, true_beta);
+%! fprintf ('\n--- Results ---\nRuntime: %.2f s\nCorrelation: %.4f\n', ...
+%!          runtime, correlation);
+%!
+%! % 8. Visualization Block
+%! figure ('Color', 'w', 'Name', 'Neural Encoding Reconstruction');
+%! subplot (2,1,1);
+%! plot (true_beta, 'Color', [0.6 0.6 0.6]);
+%! title ('Ground Truth (Smoothed \beta)');
+%! grid on;
+%! ylabel ('Weight');
+%! subplot (2,1,2);
+%! plot (estimated_beta, 'r');
+%! title (['bootridge Result (r = ', num2str(correlation, '%.3f'), ')']);
+%! grid on;
+%! ylabel ('Weight');
+%! xlabel ('Voxel Index');
 
 %!test
 %! % Basic functionality: univariate, intercept auto-add, field shapes
@@ -1501,5 +1765,3 @@ end
 %! S1 = bootridge (Y, X, [], 100, 0.10, [], 1, 42);
 %! S2 = bootridge (Y, X, [], 100, 0.10, [], 2, 42);
 %! assert (all (size (S1.Sigma_Y_hat) == [2, 2]));
-
-

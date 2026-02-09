@@ -76,9 +76,6 @@ function CI = credint (Y, PROB)
   else
     p = sz(1);
     nboot = sz(2);
-    if (p > nboot)
-      warning ('credint: The dimensions of the matrix in Y should be P * NBOOT')
-    end
   end
 
   % Evaluate PROB input argument

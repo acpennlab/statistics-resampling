@@ -496,7 +496,7 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   X(ridx, :) = [];
 
   % Get dimensions of the data
-  [m, n] = size(X);
+  [m, n] = size (X);
   q = size (Y, 2);
 
   % Check that the first column is X are all equal to 1, if not create one
@@ -661,13 +661,14 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
 
   % Search for the optimal lambda by .632 bootstrap prediction error
   try
-    smax = svds (XC, 1);                  % returns the largest singular value
+    smax = svds (XC, 1);                 % returns the largest singular value
   catch
     s = svd (XC);
     smax = s(1);
   end
-  amin = log10 (smax^2 * eps);           % minimum a for well-conditioned system
-  bmax = log10 (smax^2);                 % maximum b for well-conditioned system
+  % Set search floor above numerical noise to avoid singular Cholesky factors.
+  amin = log10 (smax^2 * max (m, n) * eps * 100);
+  bmax = log10 (smax^2);
   if (ncpus < 3)
     % Golden-section search (serial).
     [lambda, iter] = gss (obj_func, amin, bmax, tol);
@@ -1080,7 +1081,7 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
         KCi(1:n+1:end) = KCi(1:n+1:end) + lambda;   % Eq. to + lamda * eye (n)
         [U, flag] = chol (KCi);         % Upper Cholesky factor of symmetric KCi
         if (flag)
-          Alpha = pinv (KCi) * YCi;     % Robust solve with pseudoinverse
+          Alpha = pinv (KCi) * YCi;     % Fail-safe solve
         else
           Alpha = U \ (U' \ YCi);       % Fast solve by Cholesky decomposition
         end
@@ -1097,7 +1098,7 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
         A = (X(i, :)' * X(i, :) + LP);  % Regularized normal equation matrix
         [U, flag] = chol (A);           % Upper Cholesky factor of symmetric A
         if (flag)
-          Beta = pinv (A) * (X(i, :)' * Y(i, :)); % Robust solve
+          Beta = pinv (A) * (X(i, :)' * Y(i, :)); % Fail-safe solve
         else
           Beta = U \ (U' \ (X(i, :)' * Y(i, :))); % Fast solve
         end
@@ -1126,18 +1127,18 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
     Kr = K; Kr(1:n+1:end) = Kr(1:n+1:end) + lambda;  % Regularized kernel
     [U, flag] = chol (Kr);              % Upper Cholesky factor of symmetric Kr
     if (flag)
-      Alpha_obs = pinv (Kr) * Y;        % Robust solve with pseudoinverse
+      Alpha_obs = pinv (Kr) * Y;        % Fail-safe solve
     else
-      Alpha_obs = U \ (U' \ Y);         % Fast solve by Cholesky decomposition
+      Alpha_obs = U \ (U' \ Y);         % Fast solve
     end
     Beta_obs  = P_inv_vec .* (X' * Alpha_obs);
   else
     A = X' * X + LP;                    % Regularized normal equation matrix
     [U, flag] = chol (A);               % Upper Cholesky factor of symmetric A
     if (flag)
-      Beta_obs = pinv (A) * (X' * Y);   % Robust solve with pseudoinverse
+      Beta_obs = pinv (A) * (X' * Y);   % Fail-safe solve
     else
-      Beta_obs = U \ (U' \ (X' * Y));   % Fast solve by Cholesky decomposition
+      Beta_obs = U \ (U' \ (X' * Y));   % Fast solve
     end
   end
   RESI = Y - X * Beta_obs;
@@ -1645,7 +1646,7 @@ end
 %! active_voxels = 1 + ceil (rand (1, 25) * (p - 1));     % 50 spatial clusters
 %! true_beta_sparse(active_voxels) = randn (25, 1) * 100; % Active voxels
 %! kernel = [0.05 0.1 0.4 0.8 1 0.8 0.4 0.1 0.05];        % Smoothing kernel
-%! true_beta = filter(kernel, 1, true_beta_sparse);       % Smooth active voxels
+%! true_beta = filter (kernel, 1, true_beta_sparse);      % Smooth active voxels
 %!
 %! % 4. Generate Outcome Y (The Stimulus)
 %! % Signal from smoothed clusters + Gaussian noise
@@ -1653,14 +1654,19 @@ end
 %!
 %! % 5. Estimate Design Effect (Deff) to account for serial dependence
 %! % We use the autocorrelation of Y to estimate the variance inflation factor
+%! %
+%! %  Bayley, G. V., & Hammersley, J. M. (1946). The "Effective" Number of
+%! %    Independent Observations in an Autocorrelated Time Series. Supplement to
+%! %    the Journal of the Royal Statistical Society, 8(2), 184–197.
+%! %    https://doi.org/10.2307/2983560
 %! try
 %!   info = ver;
 %!   isoctave = any (ismember ({info.Name}, 'Octave'));
 %!   if (isoctave)
 %!     pkg load signal;
 %!   end
-%!   [r, lags] = xcov (Y - mean(Y), 10, 'coeff');
-%!   Deff = 1 + 2 * sum(r(lags > 0));
+%!   [r, lags] = xcov (Y - mean (Y), 10, 'coeff');
+%!   Deff = 1 + 2 * sum (r(lags > 0));
 %!   fprintf ('Estimated Design Effect (Deff): %.3f\n', Deff);
 %! catch
 %!   Deff = 1;
@@ -1676,22 +1682,12 @@ end
 %! % 7. Performance Results
 %! estimated_beta = S.Coefficient;
 %! correlation = corr (estimated_beta, true_beta);
-%! fprintf ('\n--- Results ---\nRuntime: %.2f s\nCorrelation: %.4f\n', ...
-%!          runtime, correlation);
+%! fprintf ('\n--- Performance Results ---\n');
+%! fprintf ('Runtime: %.2f seconds\n', runtime);
+%! fprintf ('Optimized Lambda: %.6f\n', S.lambda);
 %!
-%! % 8. Visualization Block
-%! figure ('Color', 'w', 'Name', 'Neural Encoding Reconstruction');
-%! subplot (2,1,1);
-%! plot (true_beta, 'Color', [0.6 0.6 0.6]);
-%! title ('Ground Truth (Smoothed \beta)');
-%! grid on;
-%! ylabel ('Weight');
-%! subplot (2,1,2);
-%! plot (estimated_beta, 'r');
-%! title (['bootridge Result (r = ', num2str(correlation, '%.3f'), ')']);
-%! grid on;
-%! ylabel ('Weight');
-%! xlabel ('Voxel Index');
+%! fprintf ('Correlation of Voxel Weight Map: %.4f\n', correlation);
+
 
 %!test
 %! % Basic functionality: univariate, intercept auto-add, field shapes

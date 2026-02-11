@@ -311,7 +311,6 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
   [Q, R] = qr (X, 0);        % Economy-sized QR decomposition
   ucov = pinv (R' * R);      % Instead of pinv (X' * X)
 
-
   % Create least squares anonymous function for bootstrap
   bootfun = @(y) lmfit (X, y, ucov, clusters, c, L, ISOCTAVE);
 
@@ -335,12 +334,12 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
   Y = bsxfun (@plus, yf, rs);
 
   % Compute bootstap statistics
-  bootout = cell2mat (cellfun (bootfun, num2cell (Y, 1), ...
+  bootout  = cell2mat (cellfun (bootfun, num2cell (Y, 1), ...
                               'UniformOutput', false));
   bootstat = [bootout.b];
-  bootse = [bootout.se];
-  bootsse = [bootout.sse];
-  bootfit = [bootout.fit];
+  bootse   = [bootout.se];
+  bootsse  = [bootout.sse];
+  bootfit  = [bootout.fit];
 
   % Studentize the bootstrap statistics and compute two-tailed confidence
   % intervals and p-values
@@ -455,7 +454,7 @@ function S = lmfit (X, y, ucov, clusters, c, L, ISOCTAVE)
   else
     % For Cluster Robust (CR) standard errors
     Sigma = cellfun (@(g) X(g,:)' * u(g) * u(g)' * X(g,:), ...
-                  num2cell (clusters, 1), 'UniformOutput', false);
+                     num2cell (clusters, 1), 'UniformOutput', false);
     meat = sum (cat (3, Sigma{:}), 3);
   end
   % Calculate variance-covariacnce matrix including a finite sample correction

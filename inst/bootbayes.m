@@ -468,13 +468,14 @@ end
 
 function param = lmfit (X, y, w, L)
 
-  % Get model coefficients by solving the linear equation.
-  % Solve the linear least squares problem using the Moore-Penrose pseudo
-  % inverse (pinv) to make it more robust to the situation where X is singular.
-  % If optional arument w is provided, it should be equal to square root of the
-  % weights we want to apply to the regression.
+  % Get model coefficients by weighted linear-least squares regression. 
+  % Solve the linear least squares problem using economy-sized Singular
+  % Value Decomposition to make it more robust to the situation where Xw
+  % is often singular. If optional arument w is provided, it should be
+  % equal to square root of the weights we want to apply to the regression.
   
-  [n, p] = size (X); % Get number of rows (n) and columns (p)
+  % Get number of rows (n) and columns (p)
+  [n, p] = size (X);
 
   if ( (nargin < 3) || isempty (w) )
     % If no weights are provided, create a vector of ones
@@ -485,6 +486,11 @@ function param = lmfit (X, y, w, L)
     L = 1;
   end
 
+  % Scale the design matrix
+  L2 = sqrt (sum (X.^2, 1));  
+  L2(L2 == 0) = 1; 
+  Xs = bsxfun (@rdivide, X, L2);
+
   % Solve the linear equation to minimize weighted least squares, where the
   % weights are equal to w.^2. The whitening transformation actually implemented
   % avoids using an n * n matrix and has improved accuracy over the solution
@@ -492,30 +498,27 @@ function param = lmfit (X, y, w, L)
   %   b = pinv (X' * W * X) * (X' * W * y);
   % Where W is the diagonal matrix of weights (i.e. W = diag (w.^2))
   % Apply weights (Whitening)
-  Xw = bsxfun (@times, w, X);
+  Xw = bsxfun (@times, w, Xs);
   yw = bsxfun (@times, w, y);
-  if (p > n)
-    % DUAL SOLVE
-    % More efficient when p > n. 
-    K = Xw * Xw';
-    [U, flag] = chol (K);        % Upper Cholesky factor of symmetric K
-    if (flag)
-      b = Xw' * (pinv (K) * yw); % Robust solve with pseudoinverse
-    else
-      b = Xw' * (U \ (U' \ yw)); % Fast solve by Cholesky decomposition
-    end
-  else
-    % PRIMAL SOLVE
-    % Standard approach for tall or square matrices
-    [U, flag] = chol (Xw' * Xw); % Upper Cholesky factor of symmetric X'*X
-    if (flag)
-      b = pinv (Xw) * yw;        % Robust solve with pseudoinverse
-    else
-      b = U \ (U' \ (Xw' * yw)); % Fast solve by Cholesky decomposition
-    end
-  end
 
-  % Compute and return the parameters (either linear estimates or coefficients)  
+  % Get dimensions of the design matrix
+  [n, p] = size (X);
+
+  % Set tolerance anchor using SVD
+  [U, S, V] = svd (Xw, 'econ');
+  s = diag (S);
+  tol  = max (n, p) * eps (s(1)) * 100;
+
+  % Find singular values that exceed tolerance and invert them
+  idx = s > tol;
+  s_inv = zeros (size (s));
+  s_inv(idx) = 1 ./ s(idx);
+
+  % Perform ordinary least squares fit to calculate the coefficients
+  bs = V * bsxfun (@times, s_inv, U' * yw);
+  b = bsxfun (@rdivide, bs, L2');
+
+  % Compute the desired parameter estimates
   param = L' * b;
 
 end

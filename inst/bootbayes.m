@@ -85,7 +85,7 @@
 %     If no X is provided, or in intercept-only models, the value 'auto'
 %     sets PRIOR so that the Bayesian-bootstrap posterior standard deviation
 %     of the mean equals the usual frequentist standard error, i.e. 
-%     std(Y,0) / sqrt(N). Here N denotes the number of independent sampling 
+%     std (Y, 0) / sqrt(N). Here N denotes the number of independent sampling 
 %     units (e.g., observations, clusters, or blocks). Thus:
 %
 %          PRIOR (i.e. alpha) = 1 - 2 / N
@@ -103,7 +103,7 @@
 %     correction matching the overall variance scale on average across
 %     coefficients. Thus:
 %
-%          PRIOR (i.e. alpha) = 1 - (tr(H) + 1) / N = 1 - (rank(X) + 1) / N
+%          PRIOR (i.e. alpha) = 1 - (tr (H) + 1) / N = 1 - (rank (X) + 1) / N
 %
 %     Here tr(H) (and equivalently rank(X)) is the effective model degrees of
 %     freedom, and N is the number of independent sampling units. Equivalently:
@@ -522,6 +522,7 @@ function param = lmfit (X, y, w, L)
   param = L' * b;
 
 end
+
 %--------------------------------------------------------------------------
 
 % FUNCTION TO PRINT OUTPUT

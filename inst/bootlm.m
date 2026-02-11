@@ -119,7 +119,8 @@
 %
 %             o 'bayesian': Bayesian bootstrap, using the 'bootbayes' function.
 %                Please see the help documentation below and in the function
-%               'bootbayes' for more information about this method [2].
+%               'bootbayes' for more information about this method [2]. This
+%                method is well-optimized for large data sets.
 %
 %             Note that p-values are a frequentist concept and are only computed
 %             and returned from bootlm when the METHOD is 'wild'. Since the wild
@@ -470,10 +471,20 @@
 %       accelerated by parallel processing on platforms with multiple processors.
 %
 %     '[STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (...)' also returns
-%     a structure containing the design matrix of the predictors (X), the
-%     regression coefficients (b), the hypothesis matrix (L) and the outcome (Y)
-%     for the linear model. Also included is column vector (ID) of arbitrary
-%     numeric identifiers for the independent sampling units.
+%     a structure containing the design matrix of the predictors (X), the raw
+%     regression coefficients (b), the outcome (Y), the column vector (ID) of
+%     arbitrary numeric identifiers for the independent sampling units, the 
+%     cell array of contrast/coding matrices (C) used to generate X, and the
+%     hypothesis matrix (L) for computing any specified estimated marginal means
+%     or posthoc comparisons.
+%
+%     'MAT = bootlm (Y, GROUP, ..., 'nboot', 0)'
+%
+%       <> Performs the least-squares fit only and returns MAT without any 
+%          bootstrap resampling. All other input options are accepted (even if
+%          some are ignored), but only one output argument can be requested.
+%          The 'display' option, if true creates the figure or diagnostic plots
+%          but does not print any results to stdout.
 %
 %  Bibliography:
 %  [1] Penn, A.C. statistics-resampling manual: `bootwild` function reference.
@@ -615,6 +626,12 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
 
     % Most error checking for NBOOT, ALPHA and SEED is handled by the functions
     % bootwild and bootbayes
+    % Evaluate NBOOT
+    if (~ NBOOT)
+      if (nargout > 1)
+        error ('bootlm: only 1 output argument can be requested if NBOOT is 0');
+      end
+    end
     if (size (ALPHA,1) > 1)
       ALPHA = ALPHA.';
     end
@@ -968,28 +985,6 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
       L = unique_stable (H, 'rows')';
     end
 
-    % Fit linear model
-    X = cell2mat (X);
-    [b, sse, resid, ucov, hat] = lmfit (X, Y, ISOCTAVE);
-
-    % Prepare model formula
-    TERMNAMES = arrayfun (@(i) sprintf (':%s', VARNAMES{TERMS(i,:)}), ...
-                                        (1:Nt), 'UniformOutput', false);
-    formula = cell (Nt, 1);
-    Y_name = inputname (1);
-    if isempty (Y_name)
-      formula{1} = 'Y ~ 1';
-    else
-      formula{1} = sprintf ('%s ~ 1', Y_name);
-    end
-    for i = 1:Nt
-      if (i > 1)
-        formula{i} = sprintf ('%s + %s', formula{i-1}, TERMNAMES{i}(2:end));
-      else 
-        formula{1} = sprintf ('%s + %s', formula{1}, TERMNAMES{1}(2:end));
-      end
-    end
-
     % Evaluate the dependence structure
     % Accounting for dependence in this way only affects the confidence
     % intervals, not the original estimates. Possibly a bit biaised when
@@ -1015,6 +1010,183 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
       end
     end
     N = max (ID);
+
+    % Fit linear model
+    X = cell2mat (X);
+    [b, sse, resid, ucov, h] = lmfit (X, Y);
+
+    % Make figure of diagnostic plots
+    switch (lower (DISPLAY))
+
+      case {'on', true}
+
+        % Make figure of diagnostic plots
+        fhandle = figure (1);
+        set (fhandle, 'Name', 'Diagnostic Plots: Model Residuals');
+        mse = sse / dfe;                         % Mean squared error
+        t = resid ./ (sqrt (mse * (1 - h)));     % Studentized residuals
+        p = n - dfe;                             % Number of parameters
+        fit = X * b;                             % Fitted values
+        D = (1 / p) * t.^2 .* (h ./ (1 - h));    % Cook's distances
+        [jnk, DI] = sort (D, 'descend');         % Sorted Cook's distances
+        nk = 4;                                  % Number of most influential
+                                                 % data points to label
+
+        % Normal quantile-quantile plot
+        subplot (2, 2, 1);
+        x = ((1:n)' - .5) / n;
+        [ts, I] = sort (t);
+        stdnorminv = @(p) sqrt (2) * erfinv (2 * p - 1);
+        q = stdnorminv (x);
+        plot (q, ts, 'ok', 'markersize', 3);
+        box off;
+        grid on;
+        xlabel ('Theoretical quantiles');
+        ylabel ('Studentized Residuals');
+        title ('Normal Q-Q Plot');
+        arrayfun (@(i) text (q(I == DI(i)), t(DI(i)), ...
+                             sprintf ('  %u', DI(i))), 1:min(nk,n))
+        iqr = [0.25; 0.75]; 
+        [ts, F] = bootcdf (t, true, 1);
+        yl = interp1 (F, ts, iqr, 'linear', min (ts));
+        xl = stdnorminv (iqr);
+        slope = diff (yl) / diff (xl);
+        int = yl(1) - slope * xl(1);
+        ax1_xlim = get (gca, 'XLim');
+        hold on; plot (ax1_xlim, slope * ax1_xlim + int, 'k-'); hold off;
+        set (gca, 'Xlim', ax1_xlim);
+
+        % Spread-Location Plot
+        subplot (2, 2, 2);
+        plot (fit, sqrt (abs (t)), 'ko', 'markersize', 3);
+        box off;
+        xlabel ('Fitted values');
+        ylabel ('sqrt ( | Studentized Residuals | )');
+        title ('Spread-Location Plot')
+        ax2_xlim = get (gca, 'XLim');
+        hold on; 
+        plot (ax2_xlim, ones (1, 2) * sqrt (2), 'k:');
+        plot (ax2_xlim, ones (1, 2) * sqrt (3), 'k-.'); 
+        plot (ax2_xlim, ones (1, 2) * sqrt (4), 'k--');
+        hold off;
+        arrayfun (@(i) text (fit(DI(i)), sqrt (abs (t(DI(i)))), ...
+                             sprintf ('  %u', DI(i))), (1:min(nk,n)));
+        xlim (ax2_xlim); 
+
+        % Residual-Leverage plot
+        subplot (2, 2, 3);
+        plot (h, t, 'ko', 'markersize', 3);
+        box off;
+        xlabel ('Leverage')
+        ylabel ('Studentized Residuals');
+        title ('Residual-Leverage Plot')
+        ax3_xlim = get (gca, 'XLim');
+        ax3_ylim = get (gca, 'YLim');
+        hold on; plot (ax3_xlim, zeros (1, 2), 'k-'); hold off;
+        arrayfun (@(i) text (h(DI(i)), t(DI(i)), ...
+                             sprintf ('  %u', DI(i))), (1:min(nk,n)));
+        set (gca, 'ygrid', 'on');
+        xlim (ax3_xlim); ylim (ax3_ylim);
+
+        % Cook's distance stem plot
+        subplot (2, 2, 4);
+        stem (D, 'ko', 'markersize', 3);
+        box off;
+        xlabel ('Obs. number')
+        ylabel ('Cook''s distance')
+        title ('Cook''s Distance Stem Plot')
+        xlim ([0, n]);
+        ax4_xlim = get (gca, 'XLim');
+        ax4_ylim = get (gca, 'YLim');
+        hold on; 
+        plot (ax4_xlim, ones (1, 2) * 4 / dfe, 'k:');
+        plot (ax4_xlim, ones (1, 2) * 0.5, 'k-.');
+        plot (ax4_xlim, ones (1, 2), 'k--');
+        hold off;
+        arrayfun (@(i) text (DI(i), D(DI(i)), ...
+                             sprintf ('  %u', DI(i))), 1:min(nk,n));
+        xlim (ax4_xlim); ylim (ax4_ylim);
+
+        set (findall ( gcf, '-property', 'FontSize'), 'FontSize', 7)
+
+      case {'off', false}
+
+        % do nothing
+
+      otherwise
+
+        error ('bootlm: wrong value for ''display'' parameter.')
+
+    end
+
+    % Evaluate which pairs of groups to evaluate as comparisons
+    switch (lower (POSTHOC))
+      case {'none', [], ''}
+        pairs = [];
+      otherwise
+        switch (class (POSTHOC))
+          case 'cell'
+            if (strcmp (POSTHOC{1}, 'trt.vs.ctrl'))
+              POSTHOC{1} = 'trt_vs_ctrl';
+            elseif (~ strcmp (POSTHOC{1}, 'trt_vs_ctrl'))
+              error (cat (2, 'bootlm: REF can only be used to specify a', ...\
+                             ' control group for ''trt_vs_ctrl'''))
+            end
+            pairs = feval (POSTHOC{1}, L, POSTHOC{2:end});
+            POSTHOC = POSTHOC{1};
+          case 'char'
+            if (strcmp (POSTHOC, 'trt.vs.ctrl'))
+              POSTHOC = 'trt_vs_ctrl';
+            elseif (~ ismember (POSTHOC, {'pairwise', 'trt_vs_ctrl'}))
+              error (cat (2, 'bootlm: available options for POSTHOC are', ...
+                             ' ''pairwise'' and ''trt_vs_ctrl'''))
+            end
+            pairs = feval (POSTHOC, L);
+          otherwise
+            pairs = unique_stable (POSTHOC, 'rows');
+            if (size (pairs, 2) > 2)
+              error (cat (2, 'bootlm: pairs matrix defining posthoc', ...
+                             ' comparisons must have exactly two columns'))
+            end
+        end
+    end
+
+    % Create MAT return value
+    MAT = struct ('X', X, 'b', b,'Y', Y, 'ID', ID, 'C', {CONTRASTS}, 'L', []);
+    if isempty (DIM)
+      % Do nothing, we already assigned an empty value to L
+    else
+      switch (lower (POSTHOC))
+        case {'none', [], ''}
+          % Assign the hypothesis matrix for computing estimated marginal means
+          MAT.L = L;
+        otherwise
+          % Assign the hypothesis matrix for computing posthoc comparisons
+          MAT.L = make_test_matrix (L, pairs);
+      end
+    end
+    if (~ NBOOT)
+      STATS = MAT;
+      return
+    end
+
+    % Prepare model formula
+    TERMNAMES = arrayfun (@(i) sprintf (':%s', VARNAMES{TERMS(i,:)}), ...
+                                        (1:Nt), 'UniformOutput', false);
+    formula = cell (Nt, 1);
+    Y_name = inputname (1);
+    if isempty (Y_name)
+      formula{1} = 'Y ~ 1';
+    else
+      formula{1} = sprintf ('%s ~ 1', Y_name);
+    end
+    for i = 1:Nt
+      if (i > 1)
+        formula{i} = sprintf ('%s + %s', formula{i-1}, TERMNAMES{i}(2:end));
+      else 
+        formula{1} = sprintf ('%s + %s', formula{1}, TERMNAMES{1}(2:end));
+      end
+    end
 
     % Use bootstrap methods to calculate statistics
     if isempty (DIM)
@@ -1124,7 +1296,6 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
         case {'none', [], ''}
 
           % The model estimated marginal means
-          pairs = [];
           switch (lower (METHOD))
             case 'wild'
               [STATS, BOOTSTAT] = bootwild (Y, X, DEP, NBOOT, ALPHA, SEED, ...
@@ -1177,7 +1348,7 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
               STATS.pval = [];
               STATS.fpr = [];
             otherwise
-              error (cat (2, 'bootlm: unrecignised bootstrap method. Use', ...
+              error (cat (2, 'bootlm: unrecognised bootstrap method. Use', ...
                              ' ''wild'' or bayesian''.'))
           end
 
@@ -1190,31 +1361,6 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
         otherwise
 
           % The model posthoc comparisons
-          switch (class (POSTHOC))
-            case 'cell'
-              if (strcmp (POSTHOC{1}, 'trt.vs.ctrl'))
-                POSTHOC{1} = 'trt_vs_ctrl';
-              elseif (~ strcmp (POSTHOC{1}, 'trt_vs_ctrl'))
-                error (cat (2, 'bootlm: REF can only be used to specify a', ...\
-                               ' control group for ''trt_vs_ctrl'''))
-              end
-              pairs = feval (POSTHOC{1}, L, POSTHOC{2:end});
-              POSTHOC = POSTHOC{1};
-            case 'char'
-              if (strcmp (POSTHOC, 'trt.vs.ctrl'))
-                POSTHOC = 'trt_vs_ctrl';
-              elseif (~ ismember (POSTHOC, {'pairwise', 'trt_vs_ctrl'}))
-                error (cat (2, 'bootlm: available options for POSTHOC are', ...
-                               ' ''pairwise'' and ''trt_vs_ctrl'''))
-              end
-              pairs = feval (POSTHOC, L);
-            otherwise
-              pairs = unique_stable (POSTHOC, 'rows');
-              if (size (pairs, 2) > 2)
-                error (cat (2, 'bootlm: pairs matrix defining posthoc', ...
-                               ' comparisons must have exactly two columns'))
-              end
-          end
           switch (lower (METHOD))
             case 'wild'
               % Modifying the hypothesis matrix (L) to perform the desired tests
@@ -1371,6 +1517,9 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
 
       end
 
+      % Add the hypothesis matrix to MAT
+      MAT.L = L;
+
     end
 
     % Clean up
@@ -1399,12 +1548,7 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
                                   'CI_upper', 'pval', 'fpr', 'N', 'prior'});
     end
 
-    % Create MAT return value
-    if (nargout > 4)
-      MAT = struct ('X', X, 'b', b, 'L', L, 'Y', Y, 'ID', ID);
-    end
-
-    % Print table of model coefficients and make figure of diagnostic plots
+    % Print table of model coefficients
     switch (lower (DISPLAY))
 
       case {'on', true}
@@ -1474,103 +1618,9 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
         end
         fprintf('\n');
 
-        % Make figure of diagnostic plots
-        fhandle = figure (1);
-        set (fhandle, 'Name', 'Diagnostic Plots: Model Residuals');
-        h = diag (hat);                          % Leverage values
-        mse = sse / dfe;                         % Mean squared error
-        t = resid ./ (sqrt (mse * (1 - h)));     % Studentized residuals
-        p = n - dfe;                             % Number of parameters
-        fit = X * b;                             % Fitted values
-        D = (1 / p) * t.^2 .* (h ./ (1 - h));    % Cook's distances
-        [jnk, DI] = sort (D, 'descend');         % Sorted Cook's distances
-        nk = 4;                                  % Number of most influential
-                                                 % data points to label
-
-        % Normal quantile-quantile plot
-        subplot (2, 2, 1);
-        x = ((1:n)' - .5) / n;
-        [ts, I] = sort (t);
-        stdnorminv = @(p) sqrt (2) * erfinv (2 * p - 1);
-        q = stdnorminv (x);
-        plot (q, ts, 'ok', 'markersize', 3);
-        box off;
-        grid on;
-        xlabel ('Theoretical quantiles');
-        ylabel ('Studentized Residuals');
-        title ('Normal Q-Q Plot');
-        arrayfun (@(i) text (q(I == DI(i)), t(DI(i)), ...
-                             sprintf ('  %u', DI(i))), 1:min(nk,n))
-        iqr = [0.25; 0.75]; 
-        [ts, F] = bootcdf (t, true, 1);
-        yl = interp1 (F, ts, iqr, 'linear', min (ts));
-        xl = stdnorminv (iqr);
-        slope = diff (yl) / diff (xl);
-        int = yl(1) - slope * xl(1);
-        ax1_xlim = get (gca, 'XLim');
-        hold on; plot (ax1_xlim, slope * ax1_xlim + int, 'k-'); hold off;
-        set (gca, 'Xlim', ax1_xlim);
-
-        % Spread-Location Plot
-        subplot (2, 2, 2);
-        plot (fit, sqrt (abs (t)), 'ko', 'markersize', 3);
-        box off;
-        xlabel ('Fitted values');
-        ylabel ('sqrt ( | Studentized Residuals | )');
-        title ('Spread-Location Plot')
-        ax2_xlim = get (gca, 'XLim');
-        hold on; 
-        plot (ax2_xlim, ones (1, 2) * sqrt (2), 'k:');
-        plot (ax2_xlim, ones (1, 2) * sqrt (3), 'k-.'); 
-        plot (ax2_xlim, ones (1, 2) * sqrt (4), 'k--');
-        hold off;
-        arrayfun (@(i) text (fit(DI(i)), sqrt (abs (t(DI(i)))), ...
-                             sprintf ('  %u', DI(i))), (1:min(nk,n)));
-        xlim (ax2_xlim); 
-
-        % Residual-Leverage plot
-        subplot (2, 2, 3);
-        plot (h, t, 'ko', 'markersize', 3);
-        box off;
-        xlabel ('Leverage')
-        ylabel ('Studentized Residuals');
-        title ('Residual-Leverage Plot')
-        ax3_xlim = get (gca, 'XLim');
-        ax3_ylim = get (gca, 'YLim');
-        hold on; plot (ax3_xlim, zeros (1, 2), 'k-'); hold off;
-        arrayfun (@(i) text (h(DI(i)), t(DI(i)), ...
-                             sprintf ('  %u', DI(i))), (1:min(nk,n)));
-        set (gca, 'ygrid', 'on');
-        xlim (ax3_xlim); ylim (ax3_ylim);
-
-        % Cook's distance stem plot
-        subplot (2, 2, 4);
-        stem (D, 'ko', 'markersize', 3);
-        box off;
-        xlabel ('Obs. number')
-        ylabel ('Cook''s distance')
-        title ('Cook''s Distance Stem Plot')
-        xlim ([0, n]);
-        ax4_xlim = get (gca, 'XLim');
-        ax4_ylim = get (gca, 'YLim');
-        hold on; 
-        plot (ax4_xlim, ones (1, 2) * 4 / dfe, 'k:');
-        plot (ax4_xlim, ones (1, 2) * 0.5, 'k-.');
-        plot (ax4_xlim, ones (1, 2), 'k--');
-        hold off;
-        arrayfun (@(i) text (DI(i), D(DI(i)), ...
-                             sprintf ('  %u', DI(i))), 1:min(nk,n));
-        xlim (ax4_xlim); ylim (ax4_ylim);
-
-        set (findall ( gcf, '-property', 'FontSize'), 'FontSize', 7)
-
       case {'off', false}
 
         % do nothing
-
-      otherwise
-
-        error ('bootlm: wrong value for ''display'' parameter.')
 
     end
 
@@ -1810,10 +1860,10 @@ end
 
 function R = cov2corr (vcov)
 
-   % Convert covariance matrix to correlation matrix
-   se = sqrt (diag (vcov));
-   R = vcov ./ (se * se');
-   R = (R + R') / 2; % This step ensures that the matrix is positive definite
+  % Convert covariance matrix to correlation matrix
+  se = sqrt (diag (vcov));
+  R = vcov ./ (se * se');
+  R = (R + R') / 2; % This step ensures that the matrix is positive definite
 
 end
 
@@ -1821,12 +1871,42 @@ end
 
 % FUNCTION TO FIT THE LINEAR MODEL
 
-function [b, sse, resid, ucov, hat] = lmfit (X, Y, ISOCTAVE)
+function [b, sse, resid, ucov, h] = lmfit (X, Y)
 
-  % Get model coefficients by solving the linear equation. The number of free
-  % parameters (i.e. intercept + coefficients) is equal to n - dfe (i.e. the
-  % number of columns in X).
-  b = pinv (X) * Y;                 % Equivalent to inv (X' * X) * (X' * y);
+  % Fit linear model
+  %
+  % USAGE: [b, sse, resid, ucov, h] = lmfit (X, Y)
+
+  % Get dimensions of the design matrix
+  [n, p] = size (X);
+
+  % Scale the design matrix
+  L2 = sqrt (sum (X.^2, 1));  
+  L2(L2 == 0) = 1; 
+  Xs = bsxfun (@rdivide, X, L2);
+
+  % Set tolerance anchor using SVD
+  [U, S, V] = svd (Xs, 'econ');
+  s = diag (S);
+  tol  = max (n, p) * eps (s(1)) * 100;
+
+  % Find singular values that exceed tolerance and invert them
+  idx = s > tol;
+  s_inv = zeros (size (s));
+  s_inv(idx) = 1 ./ s(idx);
+
+  % Perform ordinary least squares fit to calculate the coefficients
+  bs = V * bsxfun (@times, s_inv, U' * Y);
+
+  % Calculate Covariance matrix
+  ucovs = bsxfun (@times, V, (s_inv.^2)') * V';
+
+  % Return the coefficients and the covariance matrix to their original scale
+  b = bsxfun (@rdivide, bs, L2');
+  ucov = bsxfun (@rdivide, ucovs, L2' * L2);
+
+  % Calculate the leverage values
+  h = sum (U(:, idx).^2, 2);
 
   % Get fitted values
   fit = X * b;
@@ -1834,16 +1914,8 @@ function [b, sse, resid, ucov, hat] = lmfit (X, Y, ISOCTAVE)
   % Get residuals from the fit
   resid = Y - fit;
 
-  % Calculate the residual sums-of-squares
+  % Estimate the sum-of-squared residuals
   sse = sum (resid.^2);
-
-  % Calculate the unscaled covariance matrix (i.e. inv (X'*X )) and the Hat
-  % matrix (i.e. X*(X'*X)^−1*X') by QR decomposition
-  if (nargout > 3)
-    [Q, R] = qr (X, 0);     % Economy-sized QR decomposition
-    ucov = pinv (R' * R);   % Instead of pinv (X' * X)
-    hat = Q * Q';
-  end
 
 end
 
@@ -1897,13 +1969,17 @@ function L = make_test_matrix (L_EMM, pairs)
   % Create hypothesis matrix to compute posthoc comparisons directly
   % from the regression coefficients. Note that the contrasts used to
   % fit the original model must sum to zero
-  Ng = size (unique (L_EMM','rows'), 1);
-  Np = size (pairs, 1);
-  L_COMP = zeros (Np, Ng);
-  for j = 1:Np
-    L_COMP(j, pairs(j,:)) = [1,-1];
+  if (isempty (pairs))
+    L = L_EMM
+  else
+    Ng = size (unique (L_EMM','rows'), 1);
+    Np = size (pairs, 1);
+    L_COMP = zeros (Np, Ng);
+    for j = 1:Np
+      L_COMP(j, pairs(j,:)) = [1,-1];
+    end
+    L = (L_COMP * L_EMM')';
   end
-  L = (L_COMP * L_EMM')';
 
 end
 
@@ -2017,8 +2093,8 @@ function AOVSTAT = bootanova (Y, X, DF, DFE, DEP, NBOOT, ALPHA, SEED, ...
 
   % Compute observed statistics
   Nt = numel (DF) - 1;
-  [B, SSE] = arrayfun (@(j) lmfit (X(:,1:sum (DF(1:j))), Y, ...
-                                ISOCTAVE), (1:Nt + 1)', 'UniformOutput', false);
+  [B, SSE] = arrayfun (@(j) lmfit (X(:,1:sum (DF(1:j))), Y), ...
+                                   (1:Nt + 1)', 'UniformOutput', false);
   SS = max (-diff (cell2mat (SSE)), 0);
   MS = SS ./ DF(2:end);
   MSE = SSE{end} / DFE;
@@ -2057,12 +2133,12 @@ function AOVSTAT = bootanova (Y, X, DF, DFE, DEP, NBOOT, ALPHA, SEED, ...
         % Fit partial (alternative) model to each bootstrap sample generated
         % from the corresponding null model
         [jnk, PARTSSE]  = arrayfun (@(b) lmfit (X(:,1:sum (DF(1:j+1))), ...
-                BOOTDAT{j}(:,b), ISOCTAVE), (1:NBOOT)', 'UniformOutput', false);
+                          BOOTDAT{j}(:,b)), (1:NBOOT)', 'UniformOutput', false);
 
         % Fit full model to each bootstrap sample generated from the same null
         % model
-        [jnk, FULLSSE]  = arrayfun (@(b) lmfit (X, BOOTDAT{j}(:,b), ...
-                ISOCTAVE), (1:NBOOT)', 'UniformOutput', false);
+        [jnk, FULLSSE]  = arrayfun (@(b) lmfit (X, BOOTDAT{j}(:,b)), ...
+                                         (1:NBOOT)', 'UniformOutput', false);
 
         % Convert cell arrays to matrices
         PARTSSE  = cell2mat (PARTSSE)';
@@ -2113,7 +2189,7 @@ function PRED_ERR = booterr (Y, X, DF, n, DEP, NBOOT, ALPHA, SEED, ...
 
   % Compute observed statistics
   Nt = numel (DF) - 1;
-  [jnk, RSS] = arrayfun (@(j) lmfit (X(:,1:sum (DF(1:j))), Y, ISOCTAVE), ...
+  [jnk, RSS] = arrayfun (@(j) lmfit (X(:,1:sum (DF(1:j))), Y), ...
                                      (1:Nt + 1)', 'UniformOutput', false);
 
   % Compute refined bootstrap estimates of prediction error (PE)
@@ -2283,7 +2359,7 @@ end
 %! words = [10 13 13; 6 8 8; 11 14 14; 22 23 25; 16 18 20; ...
 %!          15 17 17; 1 1 4; 12 15 17;  9 12 12;  8 9 12];
 %! seconds = [1 2 5; 1 2 5; 1 2 5; 1 2 5; 1 2 5; ...
-%!            1 2 5; 1 2 5; 1 2 5; 1 2 5; 1 2 5;];
+%!            1 2 5; 1 2 5; 1 2 5; 1 2 5; 1 2 5];
 %! subject = [ 1  1  1;  2  2  2;  3  3  3;  4  4  4;  5  5  5; ...
 %!             6  6  6;  7  7  7;  8  8  8;  9  9  9; 10 10 10];
 %!
@@ -2888,7 +2964,7 @@ end
 %! fprintf ('PREDICTION ERROR of the FULL MODEL = %.2f\n', PRED_ERR.PE(3))
 %!
 %! % Note: The value of prediction error is lower than the 3.00 calculated by
-%! % Efron and Tibhirani (1993) using the same refined bootstrap procedure,
+%! % Efron and Tibshirani (1993) using the same refined bootstrap procedure,
 %! % because they have used case resampling whereas we have used wild bootstrap
 %! % resampling. The equivalent value of Cp (eq. to AIC) statistic is 2.96.
 %!
@@ -3053,7 +3129,7 @@ end
 %! words = [10 13 13; 6 8 8; 11 14 14; 22 23 25; 16 18 20; ...
 %!          15 17 17; 1 1 4; 12 15 17;  9 12 12;  8 9 12];
 %! seconds = [1 2 5; 1 2 5; 1 2 5; 1 2 5; 1 2 5; ...
-%!            1 2 5; 1 2 5; 1 2 5; 1 2 5; 1 2 5;];
+%!            1 2 5; 1 2 5; 1 2 5; 1 2 5; 1 2 5];
 %! subject = [ 1  1  1;  2  2  2;  3  3  3;  4  4  4;  5  5  5; ...
 %!             6  6  6;  7  7  7;  8  8  8;  9  9  9; 10 10 10];
 %!

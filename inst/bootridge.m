@@ -703,6 +703,7 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   % regression penalized using the optimized (and corrected) lambda
   A = X' * X + lambda * P;       % Regularized normal equation matrix
   [U, flag] = chol (A);          % Upper Cholesky factor of symmetric A
+  if (~ flag); flag = (max (diag (U)) / min (diag (U)) > 1e+06); end;
   if (flag)
     % Robust solve with pseudoinverse
     Beta = pinv (A) * (X' * Y);                   % n x q coefficient matrix
@@ -1066,6 +1067,9 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
     o(i) = false;
 
     % Calculation of Beta conditional on data dimenions
+    % The ridge parameter, lambda, helps to prevent the system matrix from
+    % becoming singular, so we can use very fast Cholesky decomposition in dual
+    % or primal space depending on the dimensions of X.
     if (use_dual)
         % DUAL (WOODBURY) SOLVE (Fast for p > n)
         % Solve the n x n system without the intercept
@@ -1080,6 +1084,7 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
         YCi = bsxfun (@minus, Yi, my);  % YCi is Yi but centered
         KCi(1:n+1:end) = KCi(1:n+1:end) + lambda;   % Eq. to + lamda * eye (n)
         [U, flag] = chol (KCi);         % Upper Cholesky factor of symmetric KCi
+        if (~ flag); flag = (max (diag (U)) / min (diag (U)) > 1e+06); end;
         if (flag)
           Alpha = pinv (KCi) * YCi;     % Fail-safe solve
         else
@@ -1097,6 +1102,7 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
         % Primal solve: (p x p)
         A = (X(i, :)' * X(i, :) + LP);  % Regularized normal equation matrix
         [U, flag] = chol (A);           % Upper Cholesky factor of symmetric A
+        if (~ flag); flag = (max (diag (U)) / min (diag (U)) > 1e+06); end;
         if (flag)
           Beta = pinv (A) * (X(i, :)' * Y(i, :)); % Fail-safe solve
         else
@@ -1122,10 +1128,13 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
   S_ERR = SSE_OOB / N_OOB;
 
   % Apparent error in resamples (A_ERR)
-  % Re-fit on full data using the selected efficient method
+  % Re-fit on full data using the selected efficient method. Note that Y
+  % provided as input must already be standardized, and X provided must already
+  % be centered.
   if (use_dual)
     Kr = K; Kr(1:n+1:end) = Kr(1:n+1:end) + lambda;  % Regularized kernel
     [U, flag] = chol (Kr);              % Upper Cholesky factor of symmetric Kr
+    if (~ flag); flag = (max (diag (U)) / min (diag (U)) > 1e+06); end;
     if (flag)
       Alpha_obs = pinv (Kr) * Y;        % Fail-safe solve
     else
@@ -1135,6 +1144,7 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
   else
     A = X' * X + LP;                    % Regularized normal equation matrix
     [U, flag] = chol (A);               % Upper Cholesky factor of symmetric A
+    if (~ flag); flag = (max (diag (U)) / min (diag (U)) > 1e+06); end;
     if (flag)
       Beta_obs = pinv (A) * (X' * Y);   % Fail-safe solve
     else

@@ -701,8 +701,9 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
 
   % Regression coefficient and the effective degrees of freedom for ridge
   % regression penalized using the optimized (and corrected) lambda
-  A = X' * X + lambda * P;       % Regularized normal equation matrix
-  [U, flag] = chol (A);          % Upper Cholesky factor of symmetric A
+  A = X' * X + lambda * P;          % Regularized normal equation matrix
+  [U, flag] = chol (A);             % Upper Cholesky factor of symmetric A
+  tol = sqrt (m / eps (class (X))); % Set tolerance  
   if (~ flag); flag = (max (diag (U)) / min (diag (U)) > 1e+06); end;
   if (flag)
     % Robust solve with pseudoinverse
@@ -1023,20 +1024,21 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
   %  Chapman & Hall. pg 247-252
   
   % Calculate dimensions
-  [n, q] = size (Y);
-  p = size (X, 2);
+  [m, q] = size (Y);
+  n = size (X, 2);
 
   % Generate balanced bootstrap indices
-  BOOTSAM = boot (n, nboot, true, seed);
+  BOOTSAM = boot (m, nboot, true, seed);
   
   % --- HYBRID STRATEGY SELECTION ---
-  % If p >  n, the Primal matrix (p x p) is bigger than the Dual matrix (n x n)
-  % If n >= p, the Primal matrix (p x p) is the same or smaller.
-  use_dual = (p > n);
+  % If n >  m, the Primal matrix (n x n) is bigger than the Dual matrix (m x m)
+  % If m >= n, the Primal matrix (n x n) is the same or smaller than the Dual.
+  use_dual = (n > m);
 
   % --- PRE-COMPUTATION PHASE ---
+  eps_X = eps (class (X));
   if (use_dual)
-      % DUAL SETUP: Prepare for Woodbury Solve (n x n inversion)
+      % DUAL SETUP: Prepare for Woodbury Solve (m x m inversion)
       % We need the inverse of the diagonal penalty matrix (Prior Covariance).
       P_vec = diag (P);
       % Calculate inverse of P_vec, dropping unpenalized intercept (from K)
@@ -1047,12 +1049,45 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
       % Pre-compute the Generalized Kernel: K = X * inv(P) * X'
       XW = bsxfun (@times, X, sqrt (P_inv_vec)');
       K  = XW * XW';
+      % Set the tolerance for ill-conditioned system matrix. 
+      % The noise floor for each element in KCi (m x m) is goverened by n.
+      tol = sqrt (n / eps_X);
   else
-      % PRIMAL SETUP: Prepare for Standard Solve (p x p inversion)
+      % PRIMAL SETUP: Prepare for Standard Solve (n x n inversion)
       % Regularization matrix
       LP = P;
-      LP(1:p+1:end) = lambda * LP(1:p+1:end); % Eq. to LP = lambda * P
+      LP(1:n+1:end) = lambda * LP(1:n+1:end); % Eq. to LP = lambda * P
+      % Set the tolerance for ill-conditioned system matrix.
+      % The noise floor for each element in A (n x n) is goverened by m.
+      tol = sqrt (m / eps_X);
   end
+
+  % Apparent error in resamples (A_ERR)
+  % Re-fit on full data using the selected efficient method. Note that Y
+  % provided as input must already be standardized, and X provided must already
+  % be centered.
+  if (use_dual)
+    Kr = K; Kr(1:m+1:end) = Kr(1:m+1:end) + lambda;  % Regularized kernel
+    [U, flag] = chol (Kr);              % Upper Cholesky factor of symmetric Kr
+    if (~ flag); flag = (max (diag (U)) / min (diag (U)) > tol); end;
+    if (flag)
+      Alpha_obs = pinv (Kr) * Y;        % Fail-safe solve
+    else
+      Alpha_obs = U \ (U' \ Y);         % Fast solve
+    end
+    Beta_obs  = P_inv_vec .* (X' * Alpha_obs);
+  else
+    A = X' * X + LP;                    % Regularized normal equation matrix
+    [U, flag] = chol (A);               % Upper Cholesky factor of symmetric A
+    if (~ flag); flag = (max (diag (U)) / min (diag (U)) > tol); end;
+    if (flag)
+      Beta_obs = pinv (A) * (X' * Y);   % Fail-safe solve
+    else
+      Beta_obs = U \ (U' \ (X' * Y));   % Fast solve
+    end
+  end
+  RESI = Y - X * Beta_obs;
+  A_ERR = sum (RESI(:).^2) / m;
 
   % --- BOOTSTRAP LOOP ---
   SSE_OOB = 0; 
@@ -1063,28 +1098,28 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
     i = BOOTSAM(:, b);
 
     % Find the indices of OOB observations for this bootstrap resample
-    o = true(n,1);
+    o = true (m, 1);
     o(i) = false;
 
-    % Calculation of Beta conditional on data dimenions
+    % Algorithm for calculation of Beta is dependent on the data dimenions.
     % The ridge parameter, lambda, helps to prevent the system matrix from
     % becoming singular, so we can use very fast Cholesky decomposition in dual
     % or primal space depending on the dimensions of X.
     if (use_dual)
-        % DUAL (WOODBURY) SOLVE (Fast for p > n)
-        % Solve the n x n system without the intercept
+        % DUAL (WOODBURY) SOLVE (Fast for n > m)
+        % Solve the m x m system without the intercept
         Ki = K(i, i);                   % Bootstrap sample of K; Ki is symmetric
-        mk = sum (Ki, 2) / n;           % mk = row means = column means (vector)
-        gm = sum (mk) / n;              % gm = grand mean of Ki (scalar)
+        mk = sum (Ki, 2) / m;           % mk = row means = column means (vector)
+        gm = sum (mk) / m;              % gm = grand mean of Ki (scalar)
         KCi = bsxfun (@minus, Ki, mk);  % Subtracts mk from every row
         KCi = bsxfun (@minus, KCi, mk');% Subtracts mk' from every column
         KCi = KCi + gm;                 % KCi is Ki but centered
         Yi = Y(i, :);                   % Bootstrap sample of Y
-        my = sum (Yi, 1) / n;           % my is mean of Yi
+        my = sum (Yi, 1) / m;           % my is mean of Yi
         YCi = bsxfun (@minus, Yi, my);  % YCi is Yi but centered
-        KCi(1:n+1:end) = KCi(1:n+1:end) + lambda;   % Eq. to + lamda * eye (n)
+        KCi(1:m+1:end) = KCi(1:m+1:end) + lambda;   % Eq. to + lamda * eye (m)
         [U, flag] = chol (KCi);         % Upper Cholesky factor of symmetric KCi
-        if (~ flag); flag = (max (diag (U)) / min (diag (U)) > 1e+06); end;
+        if (~ flag); flag = (max (diag (U)) / min (diag (U)) > tol); end;
         if (flag)
           Alpha = pinv (KCi) * YCi;     % Fail-safe solve
         else
@@ -1098,11 +1133,11 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
         % Predict the values of the OOB observations from the kernel
         PRED_OOB = bsxfun (@plus, KCo * Alpha, my); % Add back local intercept
     else
-        % PRIMAL (STANDARD) SOLVE (Fast for n >= p)
-        % Primal solve: (p x p)
+        % PRIMAL (STANDARD) SOLVE (Fast for m >= n)
+        % Primal solve: (n x n)
         A = (X(i, :)' * X(i, :) + LP);  % Regularized normal equation matrix
         [U, flag] = chol (A);           % Upper Cholesky factor of symmetric A
-        if (~ flag); flag = (max (diag (U)) / min (diag (U)) > 1e+06); end;
+        if (~ flag); flag = (max (diag (U)) / min (diag (U)) > tol); end;
         if (flag)
           Beta = pinv (A) * (X(i, :)' * Y(i, :)); % Fail-safe solve
         else
@@ -1126,33 +1161,6 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
 
   % Calculate pooled OOB error estimate
   S_ERR = SSE_OOB / N_OOB;
-
-  % Apparent error in resamples (A_ERR)
-  % Re-fit on full data using the selected efficient method. Note that Y
-  % provided as input must already be standardized, and X provided must already
-  % be centered.
-  if (use_dual)
-    Kr = K; Kr(1:n+1:end) = Kr(1:n+1:end) + lambda;  % Regularized kernel
-    [U, flag] = chol (Kr);              % Upper Cholesky factor of symmetric Kr
-    if (~ flag); flag = (max (diag (U)) / min (diag (U)) > 1e+06); end;
-    if (flag)
-      Alpha_obs = pinv (Kr) * Y;        % Fail-safe solve
-    else
-      Alpha_obs = U \ (U' \ Y);         % Fast solve
-    end
-    Beta_obs  = P_inv_vec .* (X' * Alpha_obs);
-  else
-    A = X' * X + LP;                    % Regularized normal equation matrix
-    [U, flag] = chol (A);               % Upper Cholesky factor of symmetric A
-    if (~ flag); flag = (max (diag (U)) / min (diag (U)) > 1e+06); end;
-    if (flag)
-      Beta_obs = pinv (A) * (X' * Y);   % Fail-safe solve
-    else
-      Beta_obs = U \ (U' \ (X' * Y));   % Fast solve
-    end
-  end
-  RESI = Y - X * Beta_obs;
-  A_ERR = sum (RESI(:).^2) / n;
 
   % Optimism in apparent error (OPTIM)
   OPTIM = .632 * (S_ERR - A_ERR);
@@ -1312,13 +1320,12 @@ end
 %! % Difference between means
 %! % Note that the 'dim' argument in `bootlm` automatically changes the default
 %! % coding to simple contrasts, which are centered.
-%! [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT]  = bootlm (score, gender, ...
-%!  'display', 'on', 'varnames', 'gender', 'dim', 1, 'posthoc', 'trt_vs_ctrl');
+%! MAT  = bootlm (score, gender, 'nboot', 0, 'display', 'off', ...
+%!                'dim', 1, 'posthoc', 'trt_vs_ctrl');
 %! bootridge (MAT.Y, MAT.X, 2);
 %!
 %! % Group means
-%! [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT]  = bootlm (score, gender, ...
-%!                            'display', 'off', 'varnames', 'gender', 'dim', 1);
+%! MAT  = bootlm (score, gender, 'nboot', 0, 'display', 'off', 'dim', 1);
 %! bootridge (MAT.Y, MAT.X, 2, [], [], MAT.L);
 
 %!demo
@@ -1338,20 +1345,17 @@ end
 %! % Frequentist framework: wild bootstrap of linear model, with orthogonal
 %! % polynomial contrast coding followed up with treatment vs control
 %! % hypothesis testing.
-%! [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (words, ...
-%!                  {subject,seconds},  'display', 'on', 'varnames', ...
+%! MAT = bootlm (words, {subject,seconds},  'display', 'off', 'varnames', ...
 %!                  {'subject','seconds'}, 'model', 'linear', 'contrasts', ...
-%!                  'poly', 'dim', 2, 'posthoc', 'trt_vs_ctrl');
+%!                  'poly', 'dim', 2, 'posthoc', 'trt_vs_ctrl', 'nboot', 0);
 %!
 %! % Ridge regression and bayesian analysis of posthoc comparisons
 %! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L);
 %!
 %! % Frequentist framework: wild bootstrap of linear model, with orthogonal
 %! % polynomial contrast coding followed up estimating marginal means.
-%! [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (words, ...
-%!                  {subject,seconds},  'display', 'on', 'varnames', ...
-%!                  {'subject','seconds'}, 'model', 'linear', 'contrasts', ...
-%!                  'poly', 'dim', 2);
+%! MAT = bootlm (words, {subject,seconds},  'display', 'off', 'nboot', 0, ...
+%!                  'model', 'linear', 'contrasts', 'poly', 'dim', 2);
 %!
 %! % Ridge regression and bayesian analysis of model estimates. Note that group-
 %! % mean Bayes Factors are NaN under the flat prior on the intercept whereas
@@ -1375,11 +1379,9 @@ end
 %!            'niv' 'niv' 'niv' 'niv' 'niv' 'niv' 'niv' 'niv' 'niv' 'niv'};
 %!
 %! % Estimate regression coefficients using 'anova' contrast coding 
-%! [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT]  = bootlm (pulse, ...
-%!                           {temp, species}, 'model', 'linear', ...
-%!                           'continuous', 1, 'display', 'on', ...
-%!                           'varnames', {'temp', 'species'}, ...
-%!                           'contrasts', 'anova');
+%! MAT  = bootlm (pulse, {temp, species}, 'model', 'linear', ...
+%!                           'continuous', 1, 'display', 'off', ...
+%!                           'contrasts', 'anova', 'nboot', 0);
 %!
 %! % Ridge regression and bayesian analysis of regression coefficients
 %! % MAT.X: column 1 is intercept, column 2 is temp (continuous), column 3 
@@ -1414,10 +1416,9 @@ end
 %! % Fit between-subjects design
 %! [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (arousal, ...
 %!                                   {group, stimulus}, 'seed', 1, ...
-%!                                   'display', 'on', 'contrasts', 'simple', ...
+%!                                   'display', 'off', 'contrasts', 'simple', ...
 %!                                   'model', 'full', ...
-%!                                   'method', 'bayes', ...
-%!                                   'varnames', {'group', 'stimulus'});
+%!                                   'method', 'bayes');
 %!
 %! % Ridge regression and bayesian analysis of regression coefficients
 %! % MAT.X: column 1 is intercept, column 2 is temp (continuous), column 3 
@@ -1428,12 +1429,9 @@ end
 %! ID = [1 2 3 4 5 6 7 8 9 10 11 12 1 2 3 4 5 6 7 8 9 10 11 12]';
 %!
 %! % Fit model including ID as a blocking-factor
-%! [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (arousal, ...
-%!                                   {ID, group, stimulus}, 'seed', 1, ...
-%!                                   'display', 'on', 'contrasts', 'simple', ...
-%!                                   'model', [1 0 0; 0 1 0; 0 0 1; 0 1 1], ...
-%!                                   'method', 'bayes', ...
-%!                                   'varnames', {'ID', 'group', 'stimulus'});
+%! MAT = bootlm (arousal, {ID, group, stimulus}, 'seed', 1, 'nboot', 0, ...
+%!               'display', 'off', 'contrasts', 'simple', 'method', 'bayes', ...
+%!               'model', [1 0 0; 0 1 0; 0 0 1; 0 1 1]);
 %!
 %! % Ridge regression and bayesian analysis of regression coefficients
 %! % MAT.X: column 1 is intercept, column 2 is temp (continuous), column 3 
@@ -1465,12 +1463,8 @@ end
 %! % intention is to use the posterior distributions from bayesian bootstrap
 %! % to calculate the design effect.
 %! [STATS, BOOTSTAT, AOVSTAT, PREDERR, MAT] = bootlm (data, {group}, ...
-%!      'clustid', clustid, 'seed', 1, 'display', 'on', 'contrasts', ...
+%!      'clustid', clustid, 'seed', 1, 'display', 'off', 'contrasts', ...
 %!      'treatment', 'method', 'bayes', 'prior', 'auto');
-%!
-%! % Fit a cluster-robust empirical Bayes model
-%! g = max (accumarray (clustid(:), 1, [], @sum));  % g is max. cluster size
-%! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, [], g); % Upperbound DEFF is g
 %!
 %! % Or we can get a obtain the design effect empirically using resampling.
 %! % We already fit the model accounting for clustering, now lets fit it
@@ -1486,9 +1480,20 @@ end
 %! % Or more simply, we can use the deffcalc function, which does the same thing.
 %! % We take the mean DEFF across all contrasts for a stable global penalty.
 %! DEFF = mean (deffcalc (BOOTSTAT, BOOTSTAT_SRS)) 
-%! 
-%! % Fit a cluster-robust empirical Bayes model
-%! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, [], DEFF);
+%!
+%! % Refit the model using orthogonal (helmert) contrasts and a hypothesis
+%! % matrix specifying pairwise comparisons. Set nboot to 0 to avoid resampling.
+%! MAT = bootlm (data, {group}, 'clustid', clustid, 'display', 'off', ...
+%!               'contrasts', 'helmert', 'dim', 1, 'posthoc', 'pairwise', ...
+%!               'nboot', 0);
+%!
+%! % Fit a cluster-robust empirical Bayes model using our bootstrap estimate of
+%! % the design effect and using the hypothesis matrix to define the comparisons
+%! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L, DEFF);
+%!
+%! % Compare this to using a maximum cluster size as an upperbound for Deff
+%! g = max (accumarray (clustid(:), 1, [], @sum));  % g is max. cluster size
+%! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L, g); % Upperbound DEFF is g
 %!
 %! % Note: Using the empirical DEFF (~1.5) instead of the upper-bound (4.0) 
 %! % recovers inferential power, as seen by the higher Bayes Factor (lnBF10) 

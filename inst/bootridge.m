@@ -10,7 +10,8 @@
 % -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED)
 % -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED, TOL)
 % -- Function File: S = bootridge (Y, X, ...)
-% -- Function File: [S, P] = bootridge (Y, X, ...)
+% -- Function File: [S, Yhat] = bootridge (Y, X, ...)
+% -- Function File: [S, Yhat, P] = bootridge (Y, X, ...)
 %
 %      'bootridge (Y, X)' fits an empirical Bayes ridge regression model using
 %      a linear Normal (Gaussian) likelihood with an empirical Bayes normal
@@ -242,8 +243,10 @@
 %            MARGINAL PRIORS and DETAIL below. Diagonal entries are undefined
 %            and not included.
 %
-%      '[S, P] = bootridge (Y, X, ...)' returns the diagonal matrix of ridge
-%       penalties.
+%      '[S, Yhat] = bootridge (Y, X, ...)' returns fitted values.
+%
+%      '[S, Yhat, P] = bootridge (Y, X, ...)' returns the predictor-wise penalty
+%      weights used to normalize shrinkage across features of different scales.
 %
 %      DETAIL: The model implements an empirical Bayes ridge regression that
 %      simultaneously addresses the problems of multicollinearity, multiple 
@@ -473,7 +476,8 @@
 % Author: Andrew Charles Penn
 
 
-function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
+function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
+                                    deff, seed, tol)
 
   % Check the number of input arguments provided
   if (nargin < 2)
@@ -592,8 +596,8 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   end
 
   % Check the number of output arguments requested
-  if (nargout > 2)
-    error ('bootridge: Only 2 output argument can be requested.');
+  if (nargout > 3)
+    error ('bootridge: Only 3 output arguments can be requested.');
   end
 
   % Check if running in Octave (else assume Matlab)
@@ -633,17 +637,14 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   % ridge shrinkage equivalent to what you would get if predictors were
   % standardized, ensuring the ridge parameter (lambda) applies uniformly across
   % predictors regardless of scale.
-  P = cat (2, 0, var (X(:,2:end), 0, 1));
+  P_vec = cat (2, 0, var (X(:,2:end), 0, 1))';
 
   % Evaluate categor input argument.
   if (~ isempty (categor))   
-    % Set P(k) to 1 where the predictor term corresponds to a categorical
+    % Set P_vec(k) to 1 where the predictor term corresponds to a categorical
     % variable. Categorical variable coding is exempt from penalty scaling.
-    P(categor) = 1;
+    P_vec(categor) = 1;
   end
-
-  % Convert the vector of penalties to a diagonal matrix
-  P = diag (P);
 
   % Objective function for lambda using .632 bootstrap prediction error.
   % Standardizing outcomes (YS) ensures equal weight across multivariate
@@ -657,7 +658,7 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
                    ' nonzero variance.'));
   end
   parsubfun = struct ('booterr632', @booterr632, 'lambda_eval', @lambda_eval);
-  obj_func = @(lambda) parsubfun.booterr632 (YS, XC, lambda, P, nboot, seed);
+  obj_func = @(lambda) parsubfun.booterr632 (YS, XC, lambda, P_vec, nboot, seed);
 
   % Search for the optimal lambda by .632 bootstrap prediction error
   try
@@ -667,7 +668,7 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
     smax = s(1);
   end
   % Set search floor above numerical noise to avoid singular Cholesky factors.
-  amin = log10 (smax^2 * max (m, n) * eps * 100);
+  amin = log10 (smax^2 * min (m, n) * eps);
   bmax = log10 (smax^2);
   if (ncpus < 3)
     % Golden-section search (serial).
@@ -701,9 +702,9 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
 
   % Regression coefficient and the effective degrees of freedom for ridge
   % regression penalized using the optimized (and corrected) lambda
-  A = X' * X + lambda * P;          % Regularized normal equation matrix
-  [U, flag] = chol (A);             % Upper Cholesky factor of symmetric A
-  tol = sqrt (m / eps (class (X))); % Set tolerance  
+  A = X' * X + diag (lambda * P_vec);     % Regularized normal equation matrix
+  [U, flag] = chol (A);                   % Upper Cholesky factor of symmetric A
+  tol = sqrt (m / eps (class (X)));       % Set tolerance  
   if (~ flag); flag = (max (diag (U)) / min (diag (U)) > 1e+06); end;
   if (flag)
     % Robust solve with pseudoinverse
@@ -775,8 +776,8 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   % Bayes factors.
   df_t = max (1, m / deff - trace (A \ (X' * X)));   %  m / DEFF - trace (H)
   if (df_t == 1)
-    warning (cat (2, 'bootridge: t-statistics evaluated with effective', ...
-                     ' degrees of freedom clamped at 1 degree of freedom.'));
+    fprintf (cat (2, 'Note: t-statistics evaluated with effective', ...
+                     ' degrees of freedom clamped at 1 degree of freedom.\n'));
   end
   critval = distinv (1 - alpha / 2, df_t); % Student's t distribution
   %critval = stdnorminv (1 - alpha / 2);    % Use Normal z distribution
@@ -799,7 +800,7 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
     % outcome (columns). Report mean and standard deviation of the normal 
     % distribution used for the prior.
     ridx = false (n, 1); ridx(1) = true;
-    V0 = bsxfun (@rdivide, diag (tau2_hat)', diag (P)); V0(ridx,:) = Inf; 
+    V0 = bsxfun (@rdivide, diag (tau2_hat)', P_vec); V0(ridx,:) = Inf; 
     prior = arrayfun (@(v) sprintf('t (0, %#.3g, %#.3g)', ...
                       sqrt (v), df_t), V0, 'UniformOutput', false);
     %prior = arrayfun (@(v) sprintf('N (0, %#.3g)', ...
@@ -831,8 +832,10 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
     % outcome (columns). Report mean and standard deviation of the normal 
     % distribution used for the prior.
     ridx = ( abs (L(1,:)') > eps );
-    P_L = L' * pinv (P) * L;
-    V0 = bsxfun (@times, diag (tau2_hat)', diag (P_L)); V0(ridx, :) = Inf;
+    P_inv_vec = zeros (n, 1);
+    P_inv_vec(2:end) = 1 ./ P_vec(2:end);
+    P_L = sum (bsxfun (@times, L.^2, P_inv_vec), 1)'; % diag (L' * pinv (P) * L)
+    V0 = bsxfun (@times, diag (tau2_hat)', P_L); V0(ridx, :) = Inf;
     prior = arrayfun (@(v) sprintf('t (0, %#.3g, %#.3g)', ...
                       sqrt (v), df_t), V0, 'UniformOutput', false);
     %prior = arrayfun (@(v) sprintf('N (0, %#.3g)', ...
@@ -912,6 +915,9 @@ function [S, P] = bootridge (Y, X, categor, nboot, alpha, L, deff, seed, tol)
   S.iter = iter;
   S.pred_err = pred_err;
   if (q > 1); S.R_table = R_table; end
+  if (nargout > 1)
+    Yhat = X * Beta;
+  end
 
   % Display summary
   if (nargout == 0)
@@ -1014,7 +1020,7 @@ end
 
 %% FUNCTION FOR .632 BOOTSTRAP ESTIMATOR OF PREDICTION ERROR
 
-function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
+function PRED_ERR = booterr632 (Y, X, lambda, P_vec, nboot, seed)
 
   % This function computes Efron & Tibshirani’s .632 bootstrap prediction error
   % for a multivariate linear ridge/Tikhonov model. Loss is the per-observation
@@ -1039,8 +1045,6 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
   eps_X = eps (class (X));
   if (use_dual)
       % DUAL SETUP: Prepare for Woodbury Solve (m x m inversion)
-      % We need the inverse of the diagonal penalty matrix (Prior Covariance).
-      P_vec = diag (P);
       % Calculate inverse of P_vec, dropping unpenalized intercept (from K)
       % YS columns are standardized so intercept is redundant for the prediction
       % error objective anyway.
@@ -1055,8 +1059,7 @@ function PRED_ERR = booterr632 (Y, X, lambda, P, nboot, seed)
   else
       % PRIMAL SETUP: Prepare for Standard Solve (n x n inversion)
       % Regularization matrix
-      LP = P;
-      LP(1:n+1:end) = lambda * LP(1:n+1:end); % Eq. to LP = lambda * P
+      LP = diag (lambda * P_vec);
       % Set the tolerance for ill-conditioned system matrix.
       % The noise floor for each element in A (n x n) is goverened by m.
       tol = sqrt (m / eps_X);
@@ -1551,7 +1554,24 @@ end
 %! % Generate sparse multivariate outcome Y (Gene expression)
 %! % Approx 120MB of data
 %! true_beta = randn (p, q) .* (rand (p, q) > 0.9);
-%! Y = X * true_beta + randn (N, q) * 0.5;
+%! 
+%! % Set signal-to-noise ratio to 0.5
+%! target_snr = 0.5;
+%! beta_no_intercept = true_beta(2:end, :);
+%! signal_var_per_gene = sum (beta_no_intercept.^2, 1);
+%! snr_per_gene = signal_var_per_gene / (0.5^2);
+%! current_snr = mean (snr_per_gene);
+%! scale = sqrt (target_snr / current_snr);
+%! true_beta(2:end, :) = true_beta(2:end, :) * scale;
+%!
+%! % Introduce correlations
+%! n_factors = 10; % 10 latent biological processes
+%! latent_X = randn (N, n_factors); 
+%! % Each latent factor affects about 10% of genes (sparse correlation)
+%! latent_beta = randn (n_factors, q) .* (rand (n_factors, q) > 0.90);
+%!
+%! % Simulate the data with added correlated noise (0.2 strength)
+%! Y = X * true_beta + (latent_X * latent_beta * 0.2) + randn (N, q) * 0.5;
 %!
 %! fprintf('Running bootridge ...\n');
 %! tic;
@@ -1570,8 +1590,25 @@ end
 %! actual = true_beta(:, target_gene);
 %! correlation = corr (estimated, actual);
 %!
+%! % ROC statistics
+%! threshold = 3;                                    % corresponds to BF10 of 20
+%! fp = sum (S.lnBF10(true_beta == 0) >  threshold); % false positives
+%! tp = sum (S.lnBF10(true_beta ~= 0) >  threshold); % true positives
+%! fn = sum (S.lnBF10(true_beta ~= 0) <= threshold); % missed true effects
+%! power      = tp / (tp + fn);                      % true positive rate
+%! fp_rate    = fp / sum (true_beta(:) == 0);        % false positive rate
+%! precision  = tp / (tp + fp);                      % true discovery rate
+%!
 %! fprintf ('Correlation of estimates for Gene %d: %.4f\n', ...
 %!          target_gene, correlation);
+%! fprintf ('Number of coefficients: [%s] (Expected: [15 x 2000])\n', ...
+%!           num2str (size (S.Coefficient)));
+%! fprintf ('Number of pairwise correlations: [%s] (Expected: 1999000)\n', ...
+%!           num2str (size (S.R_table, 1)));
+%! fprintf ('Positive detections (i.e. discoveries) defined hereon as BF10 > 20');
+%! fprintf ('\nFalse positive rate (FPR): %.1f%%\n', fp_rate * 100);
+%! fprintf ('Precision (i.e. 1-FDR): %.1f%%\n', precision * 100);
+%! fprintf ('Power (i.e. TPR): %.1f%%\n', power * 100);
 
 %!demo
 %! %% --- Stress-test: Large-Scale Differential Gene Expression (DGE) Simulation ---
@@ -1638,6 +1675,10 @@ end
 %!
 %! fprintf ('Correlation of Fold-Changes across %d genes: %.4f\n', ...
 %!          q, correlation);
+%! fprintf ('Number of coefficients: [%s] (Expected: [50 x 15000])\n', ...
+%!           num2str (size (S.Coefficient)));
+%! fprintf ('Number of pairwise correlations: [%s] (Expected: 112492500)\n', ...
+%!           num2str (size (S.R_table, 1)));
 
 %!demo
 %! %% --- Stress-test: High-p Voxel-wise Neural Encoding Simulation ---
@@ -1648,13 +1689,13 @@ end
 %! % 1. Setup Dimensions
 %! N = 500; p = 8000; q = 1; nboot = 200;
 %! rand ('seed', 123); randn ('seed', 123);
-%! fprintf('Simulating fMRI Encoding: %d volumes, %d voxels...\n', N, p);
+%! fprintf('Simulating fMRI Encoding: %d timepoints, %d voxels...\n', N, p);
 %!
 %! % 2. Generate Design Matrix X (The Voxels)
 %! %    Spatial correlation between voxels (columns) and time points (rows)
 %! X_raw = randn (N, p-1);
-%! X = [ones(N, 1), filter([0.5 1 0.5], 1, X_raw, [], 2)];
-%! X(:,2:end) = filter ([0.1, 0.4, 0.9, 1, 0.6, 0.2], 1, X(:,2:end), [], 1);
+%! %X = [ones(N, 1), filter([0.5 1 0.5], 1, X_raw, [], 2)];
+%! %X(:,2:end) = filter ([0.1, 0.4, 0.9, 1, 0.6, 0.2], 1, X(:,2:end), [], 1);
 %!
 %! % 3. Define the "Neural Code" (True Weights)
 %! true_beta_sparse = zeros (p, q);                       % Initialise
@@ -1702,7 +1743,8 @@ end
 %! fprintf ('Optimized Lambda: %.6f\n', S.lambda);
 %!
 %! fprintf ('Correlation of Voxel Weight Map: %.4f\n', correlation);
-
+%! fprintf ('Number of coefficients: [%s] (Expected: [8000 x 1])\n', ...
+%!           num2str (size (S.Coefficient)));
 
 %!test
 %! % Basic functionality: univariate, intercept auto-add, field shapes

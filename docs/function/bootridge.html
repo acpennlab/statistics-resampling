@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
   <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-  <meta name="date" content="2026-02-11"/>
+  <meta name="date" content="2026-02-12"/>
   <meta name="generator" content="generate_html 0.3.3" />
   <meta name="author" content="Andrew Penn" />
   <meta name="description" content="A package for statistical analysis using resampling methods." />
@@ -32,7 +32,8 @@
  -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED)
  -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED, TOL)
  -- Function File: S = bootridge (Y, X, ...)
- -- Function File: [S, P] = bootridge (Y, X, ...)
+ -- Function File: [S, Yhat] = bootridge (Y, X, ...)
+ -- Function File: [S, Yhat, P] = bootridge (Y, X, ...)
 
       'bootridge (Y, X)' fits an empirical Bayes ridge regression model using
       a linear Normal (Gaussian) likelihood with an empirical Bayes normal
@@ -264,8 +265,10 @@
             MARGINAL PRIORS and DETAIL below. Diagonal entries are undefined
             and not included.
 
-      '[S, P] = bootridge (Y, X, ...)' returns the diagonal matrix of ridge
-       penalties.
+      '[S, Yhat] = bootridge (Y, X, ...)' returns fitted values.
+
+      '[S, Yhat, P] = bootridge (Y, X, ...)' returns the predictor-wise penalty
+      weights used to normalize shrinkage across features of different scales.
 
       DETAIL: The model implements an empirical Bayes ridge regression that
       simultaneously addresses the problems of multicollinearity, multiple 
@@ -526,7 +529,7 @@
 
  Minimized .632 bootstrap prediction error: 0.0463802
 
- Bootstrap optimized ridge tuning constant (lambda): 0.0768896
+ Bootstrap optimized ridge tuning constant (lambda): 0.0767424
 
  Effective residual degrees of freedom (df_lambda): 28.0
 
@@ -541,7 +544,7 @@
  Outcome 1:
  Coefficient   CI_lower      CI_upper      lnBF10        Prior
  +24.92        +20.25        +29.59        +NaN          U (-Inf, Inf)
- +9.430        +8.663        +10.20        +42.91        t (0, 7.28, 28.0)</pre>
+ +9.430        +8.663        +10.20        +42.91        t (0, 7.29, 28.0)</pre>
 </div>
 
 <h3><a name="2">Demonstration 2</a></h3>
@@ -577,7 +580,7 @@
 
  Minimized .632 bootstrap prediction error: 1.00443
 
- Bootstrap optimized ridge tuning constant (lambda): 2.58779
+ Bootstrap optimized ridge tuning constant (lambda): 2.58499
 
  Effective residual degrees of freedom (df_lambda): 9.49
 
@@ -587,12 +590,12 @@
  Used for credible intervals and Bayes factors below.
 
  95% credible intervals and Bayes factors for regression coefficients:
- (Global ridge prior contribution to posterior precision: 48.69 %)
+ (Global ridge prior contribution to posterior precision: 48.66 %)
 
  Outcome 1:
  Coefficient   CI_lower      CI_upper      lnBF10        Prior
  +49.84        +39.83        +59.85        +NaN          U (-Inf, Inf)
- +5.542        -8.834        +19.92        +0.03844      t (0, 9.18, 9.49)
+ +5.545        -8.834        +19.92        +0.03837      t (0, 9.18, 9.49)
 
 
  Empirical Bayes Ridge Regression (.632 Bootstrap Tuning) - Summary
@@ -606,7 +609,7 @@
 
  Minimized .632 bootstrap prediction error: 1.00443
 
- Bootstrap optimized ridge tuning constant (lambda): 2.58779
+ Bootstrap optimized ridge tuning constant (lambda): 2.58499
 
  Effective residual degrees of freedom (df_lambda): 9.49
 
@@ -616,11 +619,11 @@
  Used for credible intervals and Bayes factors below.
 
  95% credible intervals and Bayes factors for linear estimates:
- (Global ridge prior contribution to posterior:precision: 48.69 %)
+ (Global ridge prior contribution to posterior:precision: 48.66 %)
 
  Outcome 1:
  Estimate      CI_lower      CI_upper      lnBF10        Prior
- +47.07        +34.37        +59.77        +NaN          U (-Inf, Inf)
+ +47.07        +34.36        +59.77        +NaN          U (-Inf, Inf)
  +52.61        +40.67        +64.55        +NaN          U (-Inf, Inf)</pre>
 </div>
 
@@ -672,7 +675,7 @@
 
  Minimized .632 bootstrap prediction error: 0.117389
 
- Bootstrap optimized ridge tuning constant (lambda): 0.0283856
+ Bootstrap optimized ridge tuning constant (lambda): 0.028454
 
  Effective residual degrees of freedom (df_lambda): 18.1
 
@@ -686,8 +689,8 @@
 
  Outcome 1:
  Estimate      CI_lower      CI_upper      lnBF10        Prior
- +1.994        +1.258        +2.731        +6.855        t (0, 6.59, 18.1)
- +3.191        +2.455        +3.927        +13.47        t (0, 6.59, 18.1)
+ +1.994        +1.258        +2.731        +6.856        t (0, 6.58, 18.1)
+ +3.191        +2.455        +3.927        +13.48        t (0, 6.58, 18.1)
 
 
  Empirical Bayes Ridge Regression (.632 Bootstrap Tuning) - Summary
@@ -701,7 +704,7 @@
 
  Minimized .632 bootstrap prediction error: 0.117389
 
- Bootstrap optimized ridge tuning constant (lambda): 0.0283856
+ Bootstrap optimized ridge tuning constant (lambda): 0.028454
 
  Effective residual degrees of freedom (df_lambda): 18.1
 
@@ -760,7 +763,7 @@
 
  Minimized .632 bootstrap prediction error: 0.012419
 
- Bootstrap optimized ridge tuning constant (lambda): 0.0310628
+ Bootstrap optimized ridge tuning constant (lambda): 0.0310279
 
  Effective residual degrees of freedom (df_lambda): 28.0
 
@@ -843,7 +846,7 @@
 
  Minimized .632 bootstrap prediction error: 0.408894
 
- Bootstrap optimized ridge tuning constant (lambda): 0.305217
+ Bootstrap optimized ridge tuning constant (lambda): 0.305249
 
  Effective residual degrees of freedom (df_lambda): 20.3
 
@@ -874,7 +877,7 @@
 
  Minimized .632 bootstrap prediction error: 0.536566
 
- Bootstrap optimized ridge tuning constant (lambda): 1.34381
+ Bootstrap optimized ridge tuning constant (lambda): 1.34378
 
  Effective residual degrees of freedom (df_lambda): 15.2
 
@@ -895,10 +898,10 @@
  -0.001133     -0.08292      +0.08065      -0.3772       t (0, 0.0561, 15.2)
  +0.004848     -0.07694      +0.08663      -0.3692       t (0, 0.0561, 15.2)
  +0.01436      -0.06856      +0.09729      -0.2917       t (0, 0.0561, 15.2)
- +0.002399     -0.08053      +0.08532      -0.3618       t (0, 0.0561, 15.2)
+ +0.002400     -0.08053      +0.08533      -0.3618       t (0, 0.0561, 15.2)
  -0.003582     -0.08651      +0.07934      -0.3593       t (0, 0.0561, 15.2)
  -0.03349      -0.1164       +0.04944      +0.02064      t (0, 0.0561, 15.2)
- -0.0005912    -0.08352      +0.08233      -0.3637       t (0, 0.0561, 15.2)
+ -0.0005911    -0.08352      +0.08233      -0.3637       t (0, 0.0561, 15.2)
  -0.02751      -0.1104       +0.05542      -0.1024       t (0, 0.0561, 15.2)
  -0.04841      -0.1174       +0.02057      +0.5616       t (0, 0.0561, 15.2)
  -0.1021       -0.1532       -0.05109      +5.517        t (0, 0.0561, 15.2)
@@ -982,7 +985,7 @@
 
  Minimized .632 bootstrap prediction error: 0.456021
 
- Bootstrap optimized ridge tuning constant (lambda, Deff-adjusted): 0.319499
+ Bootstrap optimized ridge tuning constant (lambda, Deff-adjusted): 0.318356
 
  Effective residual degrees of freedom (df_lambda): 21.1
 
@@ -992,13 +995,13 @@
  Used for credible intervals and Bayes factors below.
 
  95% credible intervals and Bayes factors for linear estimates:
- (Global ridge prior contribution to posterior:precision: 6.52 %)
+ (Global ridge prior contribution to posterior:precision: 6.50 %)
 
  Outcome 1:
  Estimate      CI_lower      CI_upper      lnBF10        Prior
- -6.335        -12.21        -0.4630       +1.028        t (0, 11.1, 13.6)
- -12.82        -18.69        -6.945        +5.627        t (0, 11.1, 13.6)
- -6.482        -12.31        -0.6508       +1.259        t (0, 9.97, 13.6)
+ -6.336        -12.21        -0.4634       +1.026        t (0, 11.2, 13.6)
+ -12.82        -18.69        -6.947        +5.627        t (0, 11.2, 13.6)
+ -6.483        -12.32        -0.6518       +1.258        t (0, 9.99, 13.6)
 
 
  Empirical Bayes Ridge Regression (.632 Bootstrap Tuning) - Summary
@@ -1012,7 +1015,7 @@
 
  Minimized .632 bootstrap prediction error: 0.456021
 
- Bootstrap optimized ridge tuning constant (lambda, Deff-adjusted): 0.116264
+ Bootstrap optimized ridge tuning constant (lambda, Deff-adjusted): 0.115848
 
  Effective residual degrees of freedom (df_lambda): 21.0
 
@@ -1022,13 +1025,13 @@
  Used for credible intervals and Bayes factors below.
 
  95% credible intervals and Bayes factors for linear estimates:
- (Global ridge prior contribution to posterior:precision: 2.48 %)
+ (Global ridge prior contribution to posterior:precision: 2.47 %)
 
  Outcome 1:
  Estimate      CI_lower      CI_upper      lnBF10        Prior
- -6.532        -21.08        +8.016        -0.8694       t (0, 30.6, 3.05)
- -13.33        -27.88        +1.214        +0.7780       t (0, 30.6, 3.05)
- -6.802        -21.31        +7.708        -0.6894       t (0, 27.4, 3.05)</pre>
+ -6.532        -21.08        +8.017        -0.8711       t (0, 30.7, 3.05)
+ -13.33        -27.88        +1.214        +0.7764       t (0, 30.7, 3.05)
+ -6.802        -21.31        +7.708        -0.6910       t (0, 27.4, 3.05)</pre>
 </div>
 
 <h3><a name="7">Demonstration 7</a></h3>
@@ -1058,7 +1061,7 @@
 
  Minimized .632 bootstrap prediction error: 0.323511
 
- Bootstrap optimized ridge tuning constant (lambda): 0.620076
+ Bootstrap optimized ridge tuning constant (lambda): 0.621467
 
  Effective residual degrees of freedom (df_lambda): 38.0
 
@@ -1105,7 +1108,7 @@
 
  Minimized .632 bootstrap prediction error: 0.498431
 
- Bootstrap optimized ridge tuning constant (lambda): 0.58529
+ Bootstrap optimized ridge tuning constant (lambda): 0.58522
 
  Effective residual degrees of freedom (df_lambda): 33.0
 
@@ -1161,7 +1164,24 @@
  % Generate sparse multivariate outcome Y (Gene expression)
  % Approx 120MB of data
  true_beta = randn (p, q) .* (rand (p, q) > 0.9);
- Y = X * true_beta + randn (N, q) * 0.5;
+ 
+ % Set signal-to-noise ratio to 0.5
+ target_snr = 0.5;
+ beta_no_intercept = true_beta(2:end, :);
+ signal_var_per_gene = sum (beta_no_intercept.^2, 1);
+ snr_per_gene = signal_var_per_gene / (0.5^2);
+ current_snr = mean (snr_per_gene);
+ scale = sqrt (target_snr / current_snr);
+ true_beta(2:end, :) = true_beta(2:end, :) * scale;
+
+ % Introduce correlations
+ n_factors = 10; % 10 latent biological processes
+ latent_X = randn (N, n_factors); 
+ % Each latent factor affects about 10% of genes (sparse correlation)
+ latent_beta = randn (n_factors, q) .* (rand (n_factors, q) > 0.90);
+
+ % Simulate the data with added correlated noise (0.2 strength)
+ Y = X * true_beta + (latent_X * latent_beta * 0.2) + randn (N, q) * 0.5;
 
  fprintf('Running bootridge ...\n');
  tic;
@@ -1180,17 +1200,40 @@
  actual = true_beta(:, target_gene);
  correlation = corr (estimated, actual);
 
+ % ROC statistics
+ threshold = 3;                                    % corresponds to BF10 of 20
+ fp = sum (S.lnBF10(true_beta == 0) >  threshold); % false positives
+ tp = sum (S.lnBF10(true_beta ~= 0) >  threshold); % true positives
+ fn = sum (S.lnBF10(true_beta ~= 0) <= threshold); % missed true effects
+ power      = tp / (tp + fn);                      % true positive rate
+ fp_rate    = fp / sum (true_beta(:) == 0);        % false positive rate
+ precision  = tp / (tp + fp);                      % true discovery rate
+
  fprintf ('Correlation of estimates for Gene %d: %.4f\n', ...
-          target_gene, correlation);</pre>
+          target_gene, correlation);
+ fprintf ('Number of coefficients: [%s] (Expected: [15 x 2000])\n', ...
+           num2str (size (S.Coefficient)));
+ fprintf ('Number of pairwise correlations: [%s] (Expected: 1999000)\n', ...
+           num2str (size (S.R_table, 1)));
+ fprintf ('Positive detections (i.e. discoveries) defined hereon as BF10 > 20');
+ fprintf ('\nFalse positive rate (FPR): %.1f%%\n', fp_rate * 100);
+ fprintf ('Precision (i.e. 1-FDR): %.1f%%\n', precision * 100);
+ fprintf ('Power (i.e. TPR): %.1f%%\n', power * 100);</pre>
 <p>Produces the following output</p>
 <pre class="example">Simulate Large-Scale Patch-seq Dataset (7500 x 2000)...
 Running bootridge ...
 
 --- Performance Results ---
-Runtime: 377.08 seconds
-Optimized Lambda: 15.974705
-Total Iterations: 11
-Correlation of estimates for Gene 533: 0.9999</pre>
+Runtime: 353.40 seconds
+Optimized Lambda: 65.132264
+Total Iterations: 12
+Correlation of estimates for Gene 158: 0.9952
+Number of coefficients: [15  2000] (Expected: [15 x 2000])
+Number of pairwise correlations: [1999000] (Expected: 1999000)
+Positive detections (i.e. discoveries) defined hereon as BF10 > 20
+False positive rate (FPR): 0.1%
+Precision (i.e. 1-FDR): 98.9%
+Power (i.e. TPR): 94.8%</pre>
 </div>
 
 <h3><a name="10">Demonstration 10</a></h3>
@@ -1260,101 +1303,21 @@ Correlation of estimates for Gene 533: 0.9999</pre>
  correlation = corr (estimated_fc', true_fc');
 
  fprintf ('Correlation of Fold-Changes across %d genes: %.4f\n', ...
-          q, correlation);</pre>
+          q, correlation);
+ fprintf ('Number of coefficients: [%s] (Expected: [50 x 15000])\n', ...
+           num2str (size (S.Coefficient)));
+ fprintf ('Number of pairwise correlations: [%s] (Expected: 112492500)\n', ...
+           num2str (size (S.R_table, 1)));</pre>
 <p>Produces the following output</p>
 <pre class="example">Simulating DGE Dataset: 300 samples, 15000 genes, 50 covariates...
 Running Multivariate bootridge (Shrinkage shared across genes)...
 
 --- Performance Results ---
-Runtime: 224.63 seconds
-Optimized Lambda: 515.306039
-Correlation of Fold-Changes across 15000 genes: 0.9759</pre>
-</div>
-
-<h3><a name="11">Demonstration 11</a></h3>
-<div class="demo">
-<p>The following code</p>
-<pre class="example">
- %% --- Stress-test: High-p Voxel-wise Neural Encoding Simulation ---
- %% Scenario: Reconstructing Visual Stimuli from fMRI BOLD signals
- %% N = 500 volumes (samples), p = 8000 voxels, q = 1 stimulus feature
- %% This demo requires the signal package in octave
-
- % 1. Setup Dimensions
- N = 500; p = 8000; q = 1; nboot = 200;
- rand ('seed', 123); randn ('seed', 123);
- fprintf('Simulating fMRI Encoding: %d volumes, %d voxels...\n', N, p);
-
- % 2. Generate Design Matrix X (The Voxels)
- %    Spatial correlation between voxels (columns) and time points (rows)
- X_raw = randn (N, p-1);
- X = [ones(N, 1), filter([0.5 1 0.5], 1, X_raw, [], 2)];
- X(:,2:end) = filter ([0.1, 0.4, 0.9, 1, 0.6, 0.2], 1, X(:,2:end), [], 1);
-
- % 3. Define the "Neural Code" (True Weights)
- true_beta_sparse = zeros (p, q);                       % Initialise
- active_voxels = 1 + ceil (rand (1, 25) * (p - 1));     % 50 spatial clusters
- true_beta_sparse(active_voxels) = randn (25, 1) * 100; % Active voxels
- kernel = [0.05 0.1 0.4 0.8 1 0.8 0.4 0.1 0.05];        % Smoothing kernel
- true_beta = filter (kernel, 1, true_beta_sparse);      % Smooth active voxels
-
- % 4. Generate Outcome Y (The Stimulus)
- % Signal from smoothed clusters + Gaussian noise
- Y = X * true_beta + randn (N, q);
-
- % 5. Estimate Design Effect (Deff) to account for serial dependence
- % We use the autocorrelation of Y to estimate the variance inflation factor
- %
- %  Bayley, G. V., & Hammersley, J. M. (1946). The "Effective" Number of
- %    Independent Observations in an Autocorrelated Time Series. Supplement to
- %    the Journal of the Royal Statistical Society, 8(2), 184–197.
- %    https://doi.org/10.2307/2983560
- try
-   info = ver;
-   isoctave = any (ismember ({info.Name}, 'Octave'));
-   if (isoctave)
-     pkg load signal;
-   end
-   [r, lags] = xcov (Y - mean (Y), 10, 'coeff');
-   Deff = 1 + 2 * sum (r(lags > 0));
-   fprintf ('Estimated Design Effect (Deff): %.3f\n', Deff);
- catch
-   Deff = 1;
- end
-
- % 6. Run bootridge
- fprintf ('Running bootridge (Global Lambda Optimization)...\n');
- tic;
- % Run the bootridge function
- S = bootridge (Y, X, [], nboot, 0.05, [], Deff, 123, 0.05);
- runtime = toc;
-
- % 7. Performance Results
- estimated_beta = S.Coefficient;
- correlation = corr (estimated_beta, true_beta);
- fprintf ('\n--- Performance Results ---\n');
- fprintf ('Runtime: %.2f seconds\n', runtime);
- fprintf ('Optimized Lambda: %.6f\n', S.lambda);
-
- fprintf ('Correlation of Voxel Weight Map: %.4f\n', correlation);</pre>
-<p>Produces the following output</p>
-<pre class="example">Simulating fMRI Encoding: 500 volumes, 8000 voxels...
-Estimated Design Effect (Deff): 3.489
-Running bootridge (Global Lambda Optimization)...
-warning: bootridge: t-statistics evaluated with effective degrees of freedom clamped at 1 degree of freedom.
-warning: called from
-    bootridge at line 778 column 5
-    get_output at line 50 column 5
-    __html_help_text__ at line 67 column 12
-    generate_package_html>wrote_html at line 842 column 5
-    generate_package_html at line 207 column 11
-    make_docs at line 33 column 1
-
-
---- Performance Results ---
-Runtime: 242.53 seconds
-Optimized Lambda: 0.320095
-Correlation of Voxel Weight Map: 0.3970</pre>
+Runtime: 197.94 seconds
+Optimized Lambda: 510.212731
+Correlation of Fold-Changes across 15000 genes: 0.9759
+Number of coefficients: [50  15000] (Expected: [50 x 15000])
+Number of pairwise correlations: [112492500] (Expected: 112492500)</pre>
 </div>
 
 <p>Package: <a href="../index.html">statistics-resampling</a></p>

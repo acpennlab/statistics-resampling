@@ -147,7 +147,7 @@
 %                  The bootlm function uses a dedicated prior for each linear
 %                  estimate. Please see the help documentation for the function 
 %                  'bootbayes' for more information about the prior [2].
-
+%
 %     '[...] = bootlm (Y, GROUP, ..., 'method', 'bayesian', 'prior', PRIOR)'
 %
 %       <> Sets the prior for Bayesian bootstrap. Possible values are:

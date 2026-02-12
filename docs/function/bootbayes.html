@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
   <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-  <meta name="date" content="2024-09-02"/>
+  <meta name="date" content="2026-02-11"/>
   <meta name="generator" content="generate_html 0.3.3" />
   <meta name="author" content="Andrew Penn" />
   <meta name="description" content="A package for statistical analysis using resampling methods." />
@@ -21,7 +21,7 @@
 
 <h2>bootbayes</h2>
 <pre> Performs Bayesian nonparametric bootstrap and calculates posterior statistics 
- for the mean, or regression coefficients from a linear model.
+ for the mean(s) or regression coefficients of univariate or multivariate data.
 
 
  -- Function File: bootbayes (Y)
@@ -40,14 +40,15 @@
      1999 bootstrap statistics, each representing the weighted mean(s) of the
      column vector (or column-major matrix), Y, using a vector of weights
      randomly generated from a symmetric Dirichlet distribution. The resulting
-     bootstrap (or posterior [1,2]) distribution(s) is/are summarised with the
-     following statistics printed to the standard output:
+     bootstrap (or posterior [1,2]) distribution(s) is/are summarised for each
+     column of Y (i.e. each outcome) with the following statistics printed to
+     the standard output:
         - original: the mean(s) of the data column(s) of Y
         - bias: bootstrap bias estimate(s)
-        - median: the median of the posterior distribution(s)
-        - stdev: the standard deviation of the posterior distribution(s)
-        - CI_lower: lower bound(s) of the 95% credible interval
-        - CI_upper: upper bound(s) of the 95% credible interval
+        - median: the median(s) of the posterior distribution(s)
+        - stdev: the standard deviation(s) of the posterior distribution(s)
+        - CI_lower: lower bound(s) of the 95% credible interval(s)
+        - CI_upper: upper bound(s) of the 95% credible interval(s)
           By default, the credible intervals are shortest probability
           intervals, which represent a more computationally stable version
           of the highest posterior density interval [3].
@@ -58,7 +59,8 @@
      is a column of ones (i.e. intercept only) and thus the statistic computed
      reduces to the mean (as above). The statistics calculated and returned in
      the output then relate to the coefficients from the regression of Y on X.
-     Y must be a column vector (not matrix) for regression.
+     Y can be a column vector (for univariate regression) or a matrix (for
+     multivariate regression).
 
      'bootbayes (Y, X, CLUSTID)' specifies a vector or cell array of numbers
      or strings respectively to be used as cluster labels or identifiers.
@@ -82,8 +84,8 @@
      'bootbayes (Y, X, ..., NBOOT, PROB)' where PROB is numeric and sets the
      lower and upper bounds of the credible interval(s). The value(s) of PROB
      must be between 0 and 1. PROB can either be:
-       <> scalar: To set the central mass of shortest probability
-                  intervals (SPI) to 100*(1-PROB)%
+       <> scalar: To set the central mass of shortest probability intervals
+                  (SPI) to 100*(1-PROB)%
        <> vector: A pair of probabilities defining the lower and upper
                   percentiles of the credible interval(s) as 100*(PROB(1))%
                   and 100*(PROB(2))% respectively. 
@@ -93,34 +95,54 @@
      'bootbayes (Y, X, ..., NBOOT, PROB, PRIOR)' accepts a positive real
      numeric scalar to parametrize the form of the symmetric Dirichlet
      distribution. The Dirichlet distribution is the conjugate PRIOR used to
-     randomly generate weights for linear least squares fitting of the observed
-     data, and subsequently to estimate the posterior for the regression
-     coefficients by Bayesian bootstrap.
-        If PRIOR is not provided or is empty, and the model is not intercept
-     -only, then the default value of PRIOR is 1, which corresponds to Bayes
-     rule: a uniform (or flat) Dirichlet distribution (over all points in its
-     support). Otherwise, the value of PRIOR is set to 'auto'.
-        The value 'auto' sets a value for PRIOR that effectively incorporates
-     Bessel's correction a priori. Thus, for a sample size of N and PRIOR set
-     to 'auto', the variance of the posterior (i.e. BOOTSTAT) becomes an
-     unbiased estimator of the sampling variance. For example, when the PRIOR
-     is 1, the prior is flat over the range of the data Y, approximated by the
-     interval +/- 2 * std (Y, 1), which is 4 * std (Y, 1) wide according to
-     the range rule of thumb for a normal distribution. Therefore, a PRIOR
-     set to 'auto' is flat over the approximate interval +/- 2 * std (Y, 0).
-     The calculation used for 'auto' is as follows:
+     randomly generate weights on the unit simplex for linear least-squares
+     fitting of the observed data, and subsequently to estimate the posterior
+     for the regression coefficients by Bayesian bootstrap and any derived 
+     linear estimates or contrasts.
 
-          PRIOR = 1 - 2 / N
+     If PRIOR is not provided or is empty, the default value of PRIOR is
+     'auto'. The behaviour of 'auto' depends on whether X is provided and
+     whether the model contains slope coefficients.
 
-        For block or cluster bootstrap, N corresponds to the number of blocks
-     or clusters (i.e. the number of independent sampling units). When N = 2,
-     the PRIOR is equal to 0, which is the Haldane prior, in which case:
+     If no X is provided, or in intercept-only models, the value 'auto'
+     sets PRIOR so that the Bayesian-bootstrap posterior standard deviation
+     of the mean equals the usual frequentist standard error, i.e. 
+     std (Y, 0) / sqrt(N). Here N denotes the number of independent sampling 
+     units (e.g., observations, clusters, or blocks). Thus:
 
-         std (BOOTSTAT, 1, 2) ~ std (Y, 1) == std (Y, 0) / sqrt (N) 
+          PRIOR (i.e. alpha) = 1 - 2 / N
 
-     Note that in this particular case, intervals will be computed using
-     the standard deviation of the posterior distribution and quantiles
-     from a standard normal distribution.
+     With this setting, std (BOOTSTAT, 0, 2) = std (Y, 0) / sqrt (N) and
+     var (BOOTSTAT, 0, 2) = std (Y, 0)^2 / N (up to Monte Carlo error).
+     When N = 2 (Haldane prior, PRIOR = 0) and the statistic is the mean, the
+     posterior standard deviation equals the frequentist standard error exactly
+     (up to Monte Carlo error):
+
+         std (BOOTSTAT, 1, 2) = std (Y, 1) = std (Y, 0) / sqrt (N)
+
+     If X is a design matrix including slope predictor terms, the value
+     'auto' generalizes the above by providing a global Bessel‑style
+     correction matching the overall variance scale on average across
+     coefficients. Thus:
+
+          PRIOR (i.e. alpha) = 1 - (tr (H) + 1) / N = 1 - (rank (X) + 1) / N
+
+     Here tr(H) (and equivalently rank(X)) is the effective model degrees of
+     freedom, and N is the number of independent sampling units. Equivalently:
+
+          PRIOR (i.e. alpha) = 1 - (N - dfe + 1) / N
+
+     where dfe = N - rank(X) is the effective error degrees of freedom.
+
+     Alternative standard prior choices include: 1 for Bayes’ rule (uniform on
+     the simplex), 0.5 for the transformation-invariant Jeffreys prior (for the
+     Dirichlet weights), and 0 for the Haldane prior. Priors lower than 1 
+     produce a more conservative (wider) posterior, whereas priors greater 
+     than 1 are more liberal, shrinking the posterior bootstrap statistics 
+     toward the maximum-likelihood estimates.
+
+     (For the Haldane prior, normal-quantile CIs use std(BOOTSTAT,1,2) to
+     match the population normalization used for the interval formula.)
 
      'bootbayes (Y, X, ..., NBOOT, PROB, PRIOR, SEED)' initialises the
      Mersenne Twister random number generator using an integer SEED value so
@@ -132,12 +154,15 @@
      the design). Otherwise, L must have the same number of rows as the number
      of columns in X.
 
-     'STATS = bootbayes (...) returns a structure with the following fields:
-     original, bias, median, stdev, CI_lower, CI_upper & prior.
+     'STATS = bootbayes (...)' returns a structure where each field contains
+     a matrix of size (p x q), where p is the number of predictors and q is
+     the number of outcomes (columns in Y). Fields include: original, bias, 
+     median, stdev, CI_lower, CI_upper and prior.
 
-     '[STATS, BOOTSTAT] = bootbayes (...)  also returns the a vector (or
-     matrix) of bootstrap statistics (BOOTSTAT) calculated over the bootstrap
-     resamples.
+     '[STATS, BOOTSTAT] = bootbayes (Y, ...)' also returns the bootstrap
+     statistics. If Y is a column vector, BOOTSTAT is a (p x nboot) matrix. 
+     If Y is a matrix (q > 1), BOOTSTAT is a (1 x q) cell array where each
+     cell contains the (p x nboot) matrix for that outcome.
 
   Bibliography:
   [1] Rubin (1981) The Bayesian Bootstrap. Ann. Statist. 9(1):130-134
@@ -146,7 +171,7 @@
   [3] Liu, Gelman & Zheng (2015). Simulation-efficient shortest probability
         intervals. Statistics and Computing, 25(4), 809–819. 
 
-  bootbayes (version 2024.05.17)
+  bootbayes (version 2026.02.02)
   Author: Andrew Charles Penn
   https://www.researchgate.net/profile/Andrew_Penn/
 
@@ -184,14 +209,14 @@
 Bootstrap settings: 
  Function: sum (W * Y)
  Resampling method: Bayesian bootstrap
- Prior: Symmetric Dirichlet distribution (a = 0.8)
+ Prior: Symmetric Dirichlet distribution (alpha = 0.8)
  Number of resamples: 1999 
  Credible interval (CI) type: Shortest probability interval
  Credible interval: 95%
 
-Posterior Statistics: 
+Posterior statistics for outcome 1: 
  original     bias         median       stdev       CI_lower      CI_upper
- +184.5       -0.02286     +184.5       1.240       +182.1        +186.9</pre>
+ +184.5       -0.003551    +184.5       1.290       +182.0        +187.3</pre>
 </div>
 
 <h3><a name="2">Demonstration 2</a></h3>
@@ -221,15 +246,83 @@ Posterior Statistics:
 Bootstrap settings: 
  Function: pinv (X' * W * X) * (X' * W * y)
  Resampling method: Bayesian bootstrap
- Prior: Symmetric Dirichlet distribution (a = 1)
+ Prior: Symmetric Dirichlet distribution (alpha = 0.93)
  Number of resamples: 1999 
  Credible interval (CI) type: Shortest probability interval
  Credible interval: 95%
 
-Posterior Statistics: 
+Posterior statistics for outcome 1: 
  original     bias         median       stdev       CI_lower      CI_upper
- +175.5       -0.05767     +175.4       2.381       +171.3        +180.3    
- +0.1904      +0.001144    +0.1941      0.07872     +0.03729      +0.3456</pre>
+ +175.5       -0.002966    +175.5       2.553       +170.9        +180.8    
+ +0.1904      +0.001350    +0.1954      0.08563     +0.03125      +0.3551</pre>
+</div>
+
+<h3><a name="3">Demonstration 3</a></h3>
+<div class="demo">
+<p>The following code</p>
+<pre class="example">
+ %% --- Stress-test: Simulated Large-Scale Patch-seq Project (bootbayes) ---
+ %% N = 7500 cells (observations), p = 15 features, q = 2000 genes (outcomes).
+ %% This tests multivariate un-weaving logic and HPD interval scaling.
+
+ N = 7500;       
+ p = 15;         
+ q = 2000;       
+ nboot = 500;    % Sufficient for stable HPD intervals
+
+ fprintf('Simulating a Large-Scale Patch-seq Dataset (%d x %d)...\n', N, q);
+
+ % Generate design matrix X (e.g., E-phys features)
+ X = [ones(N,1), randn(N, p-1)];
+
+ % Generate multivariate outcome Y (Gene expression)
+ % Approx 120MB of data
+ true_beta = randn(p, q) .* (rand(p, q) > 0.9); 
+ Y = X * true_beta + randn(N, q) * 0.5;
+
+ fprintf('Running bootbayes with %d bootstrap resamples...\n', nboot);
+ tic;
+ % Running with default alpha=0.05 (95% Credible Intervals)
+ stats = bootbayes(Y, X, [], nboot);
+ runtime = toc;
+
+ fprintf('\n--- Performance Results ---\n');
+ fprintf('Runtime: %.2f seconds\n', runtime);
+ fprintf('Total parameters estimated: %d\n', p * q);
+
+ % Accuracy Check on a random gene
+ target_gene = randi(q);
+ % Note: checking if original is returned as p x q matrix
+ if all(size(stats.original) == [p, q])
+    estimated = stats.original(:, target_gene);
+ else
+    % Fallback if it is returned as the interleaved vector
+    estimated = stats.original((target_gene-1)*p + (1:p));
+ endif
+
+ actual = true_beta(:, target_gene);
+ correlation = corr(estimated, actual);
+
+ fprintf('Correlation of estimates for Gene %d: %.4f\n', target_gene, correlation);
+
+ % Verify Credible Interval structure
+ fprintf('Number of outcome cells in stats.stdev: %d\n', length(stats.stdev));
+
+ if correlation > 0.98
+   fprintf('Result: PASSED (High accuracy OLS recovery)\n');
+ else
+   fprintf('Result: WARNING (Low correlation - check for colinearity)\n');
+ end</pre>
+<p>Produces the following output</p>
+<pre class="example">Simulating a Large-Scale Patch-seq Dataset (7500 x 2000)...
+Running bootbayes with 500 bootstrap resamples...
+
+--- Performance Results ---
+Runtime: 53.47 seconds
+Total parameters estimated: 30000
+Correlation of estimates for Gene 1744: 0.9999
+Number of outcome cells in stats.stdev: 2000
+Result: PASSED (High accuracy OLS recovery)</pre>
 </div>
 
 <p>Package: <a href="../index.html">statistics-resampling</a></p>

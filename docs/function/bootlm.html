@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
   <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-  <meta name="date" content="2024-09-02"/>
+  <meta name="date" content="2026-02-11"/>
   <meta name="generator" content="generate_html 0.3.3" />
   <meta name="author" content="Andrew Penn" />
   <meta name="description" content="A package for statistical analysis using resampling methods." />
@@ -45,7 +45,7 @@
  -- Function File: [STATS, BOOTSTAT] = bootlm (...)
  -- Function File: [STATS, BOOTSTAT, AOVSTAT] = bootlm (...)
  -- Function File: [STATS, BOOTSTAT, AOVSTAT, PRED_ERR] = bootlm (...)
- -- Function File: [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, X] = bootlm (...)
+ -- Function File: [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (...)
 
         Fits a linear model with categorical and/or continuous predictors (i.e.
      independent variables) on a continuous outcome (i.e. dependent variable)
@@ -57,8 +57,8 @@
           - p-val: two-tailed p-value(s) for the parameter(s) being equal to 0
         By default, confidence intervals and Null Hypothesis Significance Tests
      (NHSTs) for the regression coefficients (H0 = 0) are calculated by wild
-     bootstrap-t and are robust when normality and homoscedasticity cannot be
-     assumed [1].
+     (cluster) unrestricted bootstrap-t and are robust when normality and
+     homoscedasticity cannot be assumed [1].
 
         Usage of this function is very similar to that of 'anovan'. Data (Y)
      is a numeric variable, and the predictor(s) are specified in GROUP (a.k.a.
@@ -141,7 +141,8 @@
 
              o 'bayesian': Bayesian bootstrap, using the 'bootbayes' function.
                 Please see the help documentation below and in the function
-               'bootbayes' for more information about this method [2].
+               'bootbayes' for more information about this method [2]. This
+                method is well-optimized for large data sets.
 
              Note that p-values are a frequentist concept and are only computed
              and returned from bootlm when the METHOD is 'wild'. Since the wild
@@ -156,392 +157,18 @@
 
        <> Sets the prior for Bayesian bootstrap. Possible values are:
 
-             o scalar: A positive real numeric scalar to parametrize
-                  the form of the symmetric Dirichlet distribution. The
-                  Dirichlet distribution is the conjugate PRIOR used to
-                  randomly generate weights for linear least squares fitting
-                  of the observed data and subsequently to estimate the
-                  posterior for the regression coefficients by nonparametric
-                  Bayesian bootstrap.
+             o scalar: A non-negative (>= 0) scalar that parametrizes the
+                  symmetric Dirichlet used to generate weights for linear
+                  least squares and the nonparametric Bayesian bootstrap
+                  posterior.
 
-             o 'auto': Sets a value for PRIOR that effectively incorporates
-                  Bessel's correction a priori such that the variance of the
-                  posterior (i.e. of the rows of BOOTSTAT) becomes an unbiased
-                  estimator of the sampling variance*. The calculation used for
-                  'auto' is as follows:
- 
-                     PRIOR = 1 - 2 / N
- 
-                  For block or cluster bootstrap, N corresponds to the number
-                  of blocks or clusters (i.e. the number of independent
-                  sampling units).
-
-                  The 'auto' setting is recommended but is only available
-                  for Bayesian bootstrap of the estimated marginal means and
-                  for the posthoc tests (not the regression coefficients).
-                  Note that in the case where PRIOR is set to 0, credible
-                  intervals will be computed using the standard deviation of
-                  the posterior distribution and quantiles from a standard
-                  normal distribution.
-
-               The default value of PRIOR is the scalar: 1, which corresponds
-               to Bayes rule: a uniform (or flat) Dirichlet distribution
-               (over all points in its support). Please see the help
-               documentation for the function 'bootbayes' for more information
-               about the prior [2].
-
-     '[...] = bootlm (Y, GROUP, ..., 'alpha', ALPHA)'
-
-       <> ALPHA is numeric and sets the lower and upper bounds of the
-          confidence or credible interval(s). The value(s) of ALPHA must be
-          between 0 and 1. ALPHA can either be:
-
-             o scalar: Set the central mass of the intervals to 100*(1-ALPHA)%.
-                  For example, 0.05 for a 95% interval. If METHOD is 'wild',
-                  then the intervals are symmetric bootstrap-t confidence
-                  intervals [1]. If METHOD is 'bayesian', then the intervals
-                  are shortest probability credible intervals [2].
-
-             o vector: A pair of probabilities defining the lower and upper
-                  and upper bounds of the interval(s) as 100*(ALPHA(1))% and 
-                  100*(ALPHA(2))% respectively. For example, [.025, .975] for
-                  a 95% interval. If METHOD is 'wild', then the intervals are
-                  asymmetric bootstrap-t confidence intervals [1]. If METHOD is
-                  'bayesian', then the intervals are simple percentile credible
-                  intervals [2].
-
-               The default value of ALPHA is the scalar: 0.05.
-
-     '[...] = bootlm (Y, GROUP, ..., 'display', DISPOPT)'
-
-       <> DISPOPT can be either 'on' (or true, default) or 'off' (or false)
-          and controls the display of the model formula, a table of model
-          parameter estimates and a figure of diagnostic plots. The p-values
-          are formatted in APA-style.
-
-     '[...] = bootlm (Y, GROUP, ..., 'contrasts', CONTRASTS)'
-
-       <> CONTRASTS can be specified as one of the following:
-
-             o A string corresponding to one of the built-in contrasts
-               listed below:
-
-                  o 'treatment' (default): Treatment contrast (or dummy)
-                    coding. The intercept represents the mean of the first
-                    level of all the predictors. Each slope coefficient
-                    compares one level of a predictor (or interaction
-                    between predictors) with the first level for that/those
-                    predictor(s), at the first level of all the other
-                    predictors. The first (or reference level) of the
-                    predictor(s) is defined as the first level of the
-                    predictor (or combination of the predictors) listed in
-                    the GROUP argument. This type of contrast is ideal for
-                    one-way designs or factorial designs of nominal predictor
-                    variables that have an obvious reference or control group.
-
-                  o 'anova' or 'simple': Simple (ANOVA) contrast coding. The
-                    intercept represents the grand mean. Each slope coefficient
-                    represents the difference between one level of a predictor
-                    (or interaction between predictors) to the first level for
-                    that/those predictor(s), averaged over all levels of the
-                    other predictor(s). The first (or reference level) of the
-                    predictor(s) is defined as the first level of the predictor
-                    (or combination of the predictors) listed in the GROUP
-                    argument. The columns of this contrast coding scheme sum
-                    to zero. This type of contrast is ideal for nominal
-                    predictor variables that have an obvious reference or
-                    control group and that are modelled together with a
-                    covariate or blocking factor.
-
-                  o 'poly': Polynomial contrast coding for trend analysis.
-                    The intercept represents the grand mean. The remaining
-                    slope coefficients returned are for linear, quadratic,
-                    cubic etc. trends across the levels. In addition to the
-                    columns of this contrast coding scheme summing to zero,
-                    this contrast coding is orthogonal (i.e. the off-diagonal
-                    elements of its autocovariance matrix are zero) and so
-                    the slope coefficients are independent. This type of
-                    contrast is ideal for ordinal predictor variables, in
-                    particular, predictors with ordered levels that are evenly
-                    spaced.
-
-                  o 'helmert': Helmert contrast coding. The intercept
-                    represents the grand mean. Each slope coefficient
-                    represents the difference between one level of a predictor
-                    (or interaction between predictors) with the mean of the
-                    subsequent levels, where the order of the predictor levels
-                    is as they appear in the GROUP argument. In addition to the
-                    columns of this contrast coding scheme summing to zero,
-                    this contrast coding is orthogonal (i.e. the off-diagonal
-                    elements of its autocovariance matrix are zero) and so the
-                    slope coefficients are independent. This type of contrast
-                    is ideal for predictor variables that are either ordinal,
-                    or nominal with their levels ordered such that the contrast
-                    coding reflects tests of some hypotheses of interest about
-                    the nested grouping of the predictor levels.
-
-                  o 'effect': Deviation effect coding. The intercept represents
-                    the grand mean. Each slope coefficient compares one level
-                    of a predictor (or interaction between predictors) with the
-                    grand mean. Note that a slope coefficient is omitted for
-                    the first level of the predictor(s) listed in the GROUP
-                    argument. The columns of this contrast coding scheme sum to
-                    zero. This type of contrast is ideal for nominal predictor
-                    variables when there is no obvious reference group.
-
-                  o 'sdif' or 'sdiff': Successive differences contrast coding.
-                    The intercept represents the grand mean. Each slope
-                    coefficient represents the difference between one level of
-                    a predictor (or interaction between predictors) to the
-                    previous one, where the order of the predictor levels is
-                    as they appear in the GROUP argument. The columns of this
-                    contrast coding coding scheme sum to zero. This type of
-                    contrast is ideal for ordinal predictor variables.
-
-            <> A matrix containing a custom contrast coding scheme (i.e.
-               the generalized inverse of contrast weights). Rows in
-               the contrast matrices correspond to predictor levels in the
-               order that they first appear in the GROUP column. The
-               matrix must contain the same number of columns as there
-               are the number of predictor levels minus one.
-
-          If the linear model contains more than one predictor and a
-          built-in contrast coding scheme was specified, then those
-          contrasts are applied to all predictors. To specify different
-          contrasts for different predictors in the model, CONTRASTS should
-          be a cell array with the same number of cells as there are
-          columns in GROUP. Each cell should define contrasts for the
-          respective column in GROUP by one of the methods described
-          above. If cells are left empty, then the default contrasts
-          are applied. Contrasts for cells corresponding to continuous
-          predictors are ignored.
-
-     '[...] = bootlm (Y, GROUP, ..., 'nboot', NBOOT)'
-
-       <> Specifies the number of bootstrap resamples, where NBOOT must be a
-          positive integer. If empty, the default value of NBOOT is 9999.
-
-     '[...] = bootlm (Y, GROUP, ..., 'clustid', CLUSTID)'
-
-       <> Specifies a vector or cell array of numbers or strings respectively
-          to be used as cluster labels or identifiers. Rows of the data with
-          the same CLUSTID value are treated as clusters with dependent errors.
-          If CLUSTID is a row vector or a two dimensional array or matrix, then
-          it will be transposed or reshaped to be a column vectors. If empty
-          (default), no clustered resampling is performed and all errors are
-          treated as independent. The standard errors computed are cluster-
-          robust standard errors. 
-
-     '[...] = bootlm (Y, GROUP, ..., 'blocksz', BLOCKSZ)'
-
-       <> Specifies a scalar, which sets the block size for bootstrapping when
-          the errors have serial dependence. Rows of the data within the same
-          block are treated as having dependent errors. If empty (default),
-          no clustered resampling is performed and all errors are treated
-          as independent. The standard errors computed are cluster robust.
-
-     '[...] = bootlm (Y, GROUP, ..., 'dim', DIM)'
-
-       <> DIM can be specified as one of the following:
-
-             o a cell array of strings corresponding to variable names defined
-               VARNAMES, or
-
-             o a scalar or vector specifying the dimension(s),
-
-          over which 'bootlm' calculates and returns estimated marginal means
-          instead of regression coefficients. For example, the value [1 3]
-          computes the estimated marginal mean for each combination of the
-          levels of the first and third predictors. The rows of the estimates
-          returned are sorted according to the order of the dimensions
-          specified in DIM. The default value of DIM is empty, which makes
-          'bootlm' return the statistics for the model coefficients. If DIM
-          is, or includes, a continuous predictor then 'bootlm' will return an
-          error. The following statistics are printed when specifying 'dim':
-             - name: the name(s) of the estimated marginal mean(s)
-             - mean: the estimated marginal mean(s)
-             - CI_lower: lower bound(s) of the 95% confidence interval (CI)
-             - CI_upper: upper bound(s) of the 95% confidence interval (CI)
-             - N: the number of independent sampling units used to compute CIs
-
-     '[...] = bootlm (Y, GROUP, ..., 'posthoc', POSTHOC)'
-
-       <> When DIM is specified, POSTHOC comparisons along DIM can be one of
-          the following:
-
-             o empty or 'none' (default) : No posthoc comparisons are performed.
-               The statistics returned are for the estimated marginal means.
-
-             o 'pairwise' : Pairwise comparisons are performed.
-
-             o 'trt_vs_ctrl' : Treatment vs. Control comparisons are performed.
-               Control corresponds to the level(s) of the predictor(s) listed
-               within the first row of STATS when POSTHOC is set to 'none'.
-
-             o {'trt_vs_ctrl', k} : Treatment vs. Control comparisons are
-               performed. The control is group number k as returned when
-               POSTHOC is set to 'none'.
-
-             o a two-column numeric matrix defining each pair of comparisons,
-               where each number in the matrix corresponds to the row number
-               of the estimated-marginal means as listed for the same value(s)
-               of DIM and when POSTHOC is set to 'none'. The comparison
-               corresponds to the row-wise differences: column 1 - column 2.
-               See demo 6 for an example.
-
-          All of the posthoc comparisons use the Holm-Bonferroni procedure
-          to control the type I error rate, but the confidence intervals are
-          not adjusted for multiple comparisons. If the 'standardize' input
-          argument set to 'on', the estimates, confidence intervals and
-          bootstrap statistics for the comparisons are converted to estimates
-          of Cohen's d standardized effect sizes. Cohen's d here is calculated
-          from the residual standard deviation, which is estimated from the
-          standard errors and the sample sizes. As such, the effect sizes
-          calculated exclude variability attributed to other predictors in
-          the model.
-
-     '[...] = bootlm (Y, GROUP, ..., 'seed', SEED)' initialises the Mersenne
-     Twister random number generator using an integer SEED value so that
-     'bootlm' results are reproducible.
-
-     'bootlm' can return up to four output arguments:
-
-     'STATS = bootlm (...)' returns a structure with the following fields:
-       - 'method': The bootstrap method
-       - 'name': The names of each of the estimates
-       - 'estimate': The value of the estimates
-       - 'CI_lower': The lower bound(s) of the confidence/credible interval(s)
-       - 'CI_upper': The upper bound(s) of the confidence/credible interval(s)
-       - 'pval': The p-value(s) for the hypothesis that the estimate(s) == 0
-       - 'fpr': The minimum false positive risk (FPR) for each p-value [3].
-       - 'N': The number of independent sampling units used to compute CIs
-       - 'prior': The prior used for Bayesian bootstrap. This will return a
-                  scalar for regression coefficients, or a P x 1 or P x 2
-                  matrix for estimated marginal means or posthoc tests
-                  respectively, where P is the number of parameter estimates.
-       - 'levels': A cell array with the levels of each predictor.
-       - 'contrasts': A cell array of contrasts associated with each predictor.
-
-          Note that the p-values returned are truncated at the resolution
-          limit determined by the number of bootstrap replicates, specifically 
-          1 / (NBOOT + 1). Values for the minumum false positive risk are
-          computed using the Sellke-Berger approach. The following fields are
-          only returned when 'estimate' corresponds to model regression
-          coefficients: 'levels' and 'contrasts'.
-
-     '[STATS, BOOTSTAT] = bootlm (...)' also returns a P x NBOOT matrix of
-     bootstrap statistics for the estimated parameters, where P is the number
-     of parameters estimated in the model. Depending on the DIM and POSTHOC
-     input arguments set by the user, the estimated parameters whose bootstrap
-     statistics are returned will be either regression coefficients, the
-     estimated marginal means, or the mean differences between groups of a
-     categorical predictor for posthoc testing.
-
-     '[STATS, BOOTSTAT, AOVSTAT] = bootlm (...)' also computes bootstrapped
-     ANOVA statistics* and returns them in a structure with the following
-     fields: 
-       - 'MODEL': The formula of the linear model(s) in Wilkinson's notation
-       - 'SS': Sum-of-squares
-       - 'DF': Degrees of freedom
-       - 'MS': Mean-squares
-       - 'F': F-Statistic
-       - 'PVAL': p-values
-       - 'FPR': The minimum false positive risk for each p-value [3]
-       - 'SSE': Sum-of-Squared Error
-       - 'DFE': Degrees of Freedom for Error
-       - 'MSE': Mean Squared Error
-
-       The ANOVA implemented uses sequential (type I) sums-of-squares and so
-       the results and their interpretation depend on the order** of predictors
-       in the GROUP variable (when the design is not balanced). Thus, the null
-       model used for comparison for each model is the model listed directly
-       above it in AOVSTAT; for the first model, the null model is the
-       intercept-only model. Note that ANOVA statistics are only returned when
-       the method used is 'wild' bootstrap AND when no other statistics are
-       requested (i.e. estimated marginal means or posthoc tests). The
-       bootstrap is achieved by wild bootstrap of the residuals from the full
-       model [1,4]. Computations of the statistics in AOVSTAT are compatible
-       with the 'clustid' and 'blocksz' options.
-
-       The bootlm function treats all model predictors as fixed effects during
-       ANOVA tests. While any type of predictor, be it a fixed effect or
-       nuisance random effect, can be included in the model as a main effect,
-       any p-values returned are only meaningful for the main effects and
-       interactions that involve just fixed effects - same goes for the
-       p-values and confidence intervals for the associated regression
-       coefficients. Note also that the bootlm function can be used to compute
-       p-values for ANOVA with nested data structures by cluster bootstrap
-       resampling (see the 'clustid' option).
-
-       ** See demo 7 for an example of how to obtain results for ANOVA using
-          type II sums-of-squares, which test hypotheses that give results
-          invariant to the order of the predictors, regardless of whether
-          sample sizes are equal or not.
-
-     '[STATS, BOOTSTAT, AOVSTAT, PRED_ERR] = bootlm (...)' also computes
-     refined bootstrap estimates of prediction error* and returns statistics
-     derived from it in a structure containing the following fields:
-       - 'MODEL': The formula of the linear model(s) in Wilkinson's notation
-       - 'PE': Bootstrap estimate of prediction error [5]
-       - 'PRESS': Bootstrap estimate of predicted residual error sum of squares
-       - 'RSQ_pred': Bootstrap estimate of predicted R-squared
-       - 'EIC': Extended (Efron) Information Criterion [6]
-       - 'RL': Relative likelihood (compared to the intercept-only model)
-       - 'Wt': EIC expressed as weights
-
-       The linear models evaluated are the same as for AOVSTAT, except that the 
-       output also includes the statistics for the intercept-only model. Note
-       that PRED_ERR statistics are only returned when the method used is
-       'wild' bootstrap AND when no other statistics are requested (i.e.
-       estimated marginal means or posthoc tests). Computations of the
-       statistics in PRED_ERR are compatible with the 'clustid' and 'blocksz'
-        options. Note that it is possible (and not unusual) to get a negative
-       value for RSQ-pred, particularly for the intercept-only model.
-
-     * If the parallel computing toolbox (Matlab) or package (Octave) is
-       installed and loaded, then these computations will be automatically
-       accelerated by parallel processing on platforms with multiple processors
-
-     '[STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (...)' also returns
-     a structure containing the design matrix of the predictors (X), the
-     regression coefficients (b), the hypothesis matrix (L) and the outcome (Y)
-     for the linear model.
-
-  Bibliography:
-  [1] Penn, A.C. statistics-resampling manual: `bootwild` function reference.
-        https://gnu-octave.github.io/statistics-resampling/function/bootwild.html 
-        and references therein. Last accessed 02 Sept 2024.
-  [2] Penn, A.C. statistics-resampling manual: `bootbayes` function reference.
-        https://gnu-octave.github.io/statistics-resampling/function/bootbayes.html
-        and references therein. Last accessed 02 Sept 2024.
-  [3] David Colquhoun (2019) The False Positive Risk: A Proposal Concerning
-        What to Do About p-Values, The American Statistician, 73:sup1, 192-201
-  [4] ter Braak (1992) Permutation versus bootstrap significance test in
-        multiple regression and ANOVA. In Jockel et al (Eds.) Bootstrapping
-        and Related Techniques. Springer-Verlag, Berlin, pg 79-86
-  [5] Efron and Tibshirani (1993) An Introduction to the Bootstrap. 
-        New York, NY: Chapman & Hall. pg 247-252
-  [6] Konishi & Kitagawa (2008), "Bootstrap Information Criterion" In: 
-        Information Criteria and Statistical Modeling. Springer Series in
-        Statistics. Springer, NY.
-
-  bootlm (version 2024.07.08)
-  Author: Andrew Charles Penn
-  https://www.researchgate.net/profile/Andrew_Penn/
-
-  Copyright 2019 Andrew Charles Penn
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see http://www.gnu.org/licenses/
+             o 'auto' (default): Sets value(s) for PRIOR that effectively
+                  incorporates Bessel's correction a priori such that the
+                  variance of the posterior (i.e. of the rows of BOOTSTAT) 
+                  becomes an unbiased estimator of the sampling variance*.
+                  The bootlm function uses a dedicated prior for each linear
+                  estimate. Please see the help documentation for the function 
+                  'bootbayes' for more information about the prior [2].
 </pre>
 
 <h3><a name="1">Demonstration 1</a></h3>
@@ -592,7 +219,7 @@ score ~ 1 + gender
 
 MODEL POSTHOC COMPARISONS
 
-name                                   mean        CI_lower    CI_upper   p-adj
+name                                   mean        CI_lower    CI_upper    p-adj
 --------------------------------------------------------------------------------
 female - male                          +10.80      -8.779      +30.38       .239
 
@@ -603,7 +230,7 @@ score ~ 1 + gender
 
 MODEL POSTHOC COMPARISONS
 
-name                                   mean        CI_lower    CI_upper   p-adj
+name                                   mean        CI_lower    CI_upper    p-adj
 --------------------------------------------------------------------------------
 female - male                          +0.7471     -0.6022     +2.096       .243
 
@@ -649,110 +276,50 @@ female                                 +55.00      +42.03      +67.49          6
 <pre class="example">
 
  % Two-sample paired test on dependent or matched samples equivalent to a
- % paired t-test.
+ % paired t-test using wild cluster bootstrap resampling.
  %
- % IMPORTANT: We are only interested here in the statistics for the predictor
- % 'treatment', which we have fitted, and interpreted as, a fixed effect. We
- % have also treated the predictor 'subject' as a fixed effect, when in most
- % instances we would want include it as a random effect in a mixed model.
- % However, treating 'subject' as a fixed doesn't affect our results for
- % 'treatment' since there is no interaction specified between the two
- % predictors in our model.
+ % The outcome was measured before and after an intervention in different
+ % subjects labelled with a unique numeric identifier.
 
- score = [4.5 5.6; 3.7 6.4; 5.3 6.4; 5.4 6.0; 3.9 5.7]';
- treatment = {'before' 'after'; 'before' 'after'; 'before' 'after';
-              'before' 'after'; 'before' 'after'}';
- subject = {'GS' 'GS'; 'JM' 'JM'; 'HM' 'HM'; 'JW' 'JW'; 'PS' 'PS'}';
+ outcome = [59.40 46.40 46.00 49.00 32.50 45.20 60.30 54.30 45.40 38.90 ...
+            64.50 52.40 49.70 48.70 37.40 49.50 59.90 54.10 49.60 48.50];
+ time    = {'before' 'before' 'before' 'before' 'before' 'before' 'before' ...
+            'before' 'before' 'before' 'after' 'after' 'after' 'after' ...
+            'after' 'after' 'after' 'after' 'after' 'after'};
+ id      = [1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10];
 
  % 95% confidence intervals and p-values for the difference in mean score
- % before and after treatment (computed by wild bootstrap)
- STATS = bootlm (score, {subject, treatment}, ...
-                            'model', 'linear', 'display', 'on', ...
-                            'varnames', {'subject','treatment'}, ...
-                            'dim', 2, 'posthoc','trt_vs_ctrl');
-
- % Standardized effect size (Cohen's d) with 95% confidence intervals and 
- % total sample size for the difference in mean score before and after
- % treatment (computed by wild bootstrap). In this particular case,
- % rather than the full model, we have opted for an estimate of the classic
- % Cohen's d by refitting the model as a between-subjects design. (It is
- % possible to get the standardized effect size from the full model instead,
- % but this does change the interpretation of the effect size - ensure that
- % your methods are properly documented with reports of standardized effect
- % sizes)
- STATS = bootlm (score, {treatment}, 'standardize', true, 'model', 'linear', ...
-                            'display', 'on', 'varnames', 'treatment',  ...
-                            'dim', 1, 'posthoc','trt_vs_ctrl', ...
-                            'method', 'wild');
-
- fprintf ('Cohen''s d [95%% CI] = %.2f [%.2f, %.2f] (N = %u)\n\n', ...
-          STATS.estimate, STATS.CI_lower, STATS.CI_upper, STATS.N)
-
- % Standardized effect size (Cohen's d) with 95% credible intervals and 
- % total sample size for the difference in mean score before and after
- % treatment (computed by bayesian bootstrap).
- STATS = bootlm (score, {treatment}, 'standardize', true, 'model', 'linear', ...
-                            'display', 'on', 'varnames', 'treatment',  ...
-                            'dim', 1, 'posthoc','trt_vs_ctrl', ...
-                            'method', 'bayesian', 'prior', 'auto');
-
- fprintf ('Cohen''s d [95%% CI] = %.2f [%.2f, %.2f] (N = %u)\n\n', ...
-          STATS.estimate, STATS.CI_lower, STATS.CI_upper, STATS.N)
+ % before and after treatment (computed by wild cluster bootstrap)
+ STATS = bootlm (outcome, {time}, 'display', 'on', 'varnames', 'time', ...
+                 'clustid', id, 'dim', 1, 'posthoc','trt_vs_ctrl');
 
  % 95% credible intervals for the estimated marginal means of the scores
- % before and after treatment (computed by Bayesian bootstrap)
- STATS = bootlm (score, {subject, treatment}, ...
+ % before and after treatment (computed by Bayesian cluster bootstrap)
+ STATS = bootlm (outcome, {time}, 'varnames', 'time', ...
                             'model', 'linear', 'display', 'on', ...
-                            'varnames', {'subject','treatment'}, ...
-                            'dim', 2, 'method','bayesian', 'prior', 'auto');</pre>
+                            'dim', 1, 'method','bayesian', 'prior', 'auto');</pre>
 <p>Produces the following output</p>
 <pre class="example">MODEL FORMULA (based on Wilkinson's notation):
 
-score ~ 1 + subject + treatment
+outcome ~ 1 + time
 
 MODEL POSTHOC COMPARISONS
 
-name                                   mean        CI_lower    CI_upper   p-adj
+name                                   mean        CI_lower    CI_upper    p-adj
 --------------------------------------------------------------------------------
-after - before                         +1.460      +0.6672     +2.253       .002
+after - before                         +3.690      +1.351      +6.029       .003
 
 
 MODEL FORMULA (based on Wilkinson's notation):
 
-score ~ 1 + treatment
-
-MODEL POSTHOC COMPARISONS
-
-name                                   mean        CI_lower    CI_upper   p-adj
---------------------------------------------------------------------------------
-after - before                         +2.384      +0.6359     +4.132       .012
-
-Cohen's d [95% CI] = 2.38 [0.64, 4.13] (N = 10)
-
-
-MODEL FORMULA (based on Wilkinson's notation):
-
-score ~ 1 + treatment
-
-MODEL POSTHOC COMPARISONS
-
-name                                   mean        CI_lower    CI_upper        
---------------------------------------------------------------------------------
-after - before                         +2.397      +1.178      +3.572           
-
-Cohen's d [95% CI] = 2.40 [1.18, 3.57] (N = 10)
-
-
-MODEL FORMULA (based on Wilkinson's notation):
-
-score ~ 1 + subject + treatment
+outcome ~ 1 + time
 
 MODEL ESTIMATED MARGINAL MEANS
 
 name                                   mean        CI_lower    CI_upper        N
 --------------------------------------------------------------------------------
-before                                 +4.560      +4.103      +4.984          5
-after                                  +6.020      +5.577      +6.459          5</pre>
+before                                 +47.74      +42.31      +53.05         10
+after                                  +51.43      +46.83      +56.11         10</pre>
 <p>and the following figure</p>
 <p><table class="images">
 <tr>
@@ -781,9 +348,8 @@ after                                  +6.020      +5.577      +6.459          5
  [STATS, BOOTSTAT, AOVSTAT] = bootlm (strength, alloy, 'display', 'off', 
                                       'varnames', 'alloy');
  fprintf ('ONE-WAY ANOVA SUMMARY\n')
- fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-            AOVSTAT.DF, AOVSTAT.DFE, AOVSTAT.F, ...
-            AOVSTAT.PVAL, AOVSTAT.MODEL{1});
+ fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+          AOVSTAT.F, AOVSTAT.PVAL, AOVSTAT.MODEL{1});
 
  % 95% confidence intervals and p-values for the differences in mean strength
  % of the three alloys (computed by wild bootstrap)
@@ -797,7 +363,7 @@ after                                  +6.020      +5.577      +6.459          5
                  'dim', 1, 'method','bayesian', 'prior', 'auto');</pre>
 <p>Produces the following output</p>
 <pre class="example">ONE-WAY ANOVA SUMMARY
-F(2,17) = 15.40, p = 0.0001 for the model: strength ~ 1 + alloy
+F = 15.40, p = 0.0005 for the model: strength ~ 1 + alloy
 
 MODEL FORMULA (based on Wilkinson's notation):
 
@@ -805,11 +371,11 @@ strength ~ 1 + alloy
 
 MODEL POSTHOC COMPARISONS
 
-name                                   mean        CI_lower    CI_upper   p-adj
+name                                   mean        CI_lower    CI_upper    p-adj
 --------------------------------------------------------------------------------
-st - al1                               +7.000      +3.801      +10.10      <.001
-st - al2                               +5.000      +2.580      +7.411      <.001
-al1 - al2                              -2.000      -4.843      +0.8903      .176
+st - al1                               +7.000      +3.868      +10.20      <.001
+st - al2                               +5.000      +2.552      +7.498      <.001
+al1 - al2                              -2.000      -4.956      +0.8968      .177
 
 
 MODEL FORMULA (based on Wilkinson's notation):
@@ -820,9 +386,9 @@ MODEL ESTIMATED MARGINAL MEANS
 
 name                                   mean        CI_lower    CI_upper        N
 --------------------------------------------------------------------------------
-st                                     +84.00      +82.18      +85.72          8
-al1                                    +77.00      +74.93      +79.44          6
-al2                                    +79.00      +77.69      +80.41          6</pre>
+st                                     +84.00      +82.21      +85.73          8
+al1                                    +77.00      +74.96      +79.42          6
+al2                                    +79.00      +77.69      +80.47          6</pre>
 <p>and the following figure</p>
 <p><table class="images">
 <tr>
@@ -838,77 +404,76 @@ al2                                    +79.00      +77.69      +80.41          6
 <p>The following code</p>
 <pre class="example">
 
- % One-way repeated measures design. The data is from a study on the number
- % of words recalled by 10 subjects for three time condtions, in Loftus &
- % Masson (1994) Psychon Bull Rev. 1(4):476-490, Table 2.
- %
- % IMPORTANT: We are only interested here in the statistics for the predictor
- % 'seconds', which we have fitted, and interpreted as, a fixed effect. We
- % have also treated the predictor 'subject' as a fixed effect, when in most
- % instances we would want include it as a random effect in a mixed model.
- % However, treating 'subject' as a fixed doesn't affect our results for
- % 'seconds' since there is no interaction specified between the two
- % predictors in our model.
+ % One-way repeated measures design analysed using wild cluster bootstrap. 
+ % The data is from a study on the number of words recalled by 10 subjects
+ % for three time condtions, in Loftus & Masson (1994) Psychon Bull Rev. 
+ % 1(4):476-490, Table 2.
 
  words = [10 13 13; 6 8 8; 11 14 14; 22 23 25; 16 18 20; ...
           15 17 17; 1 1 4; 12 15 17;  9 12 12;  8 9 12];
  seconds = [1 2 5; 1 2 5; 1 2 5; 1 2 5; 1 2 5; ...
-            1 2 5; 1 2 5; 1 2 5; 1 2 5; 1 2 5;];
+            1 2 5; 1 2 5; 1 2 5; 1 2 5; 1 2 5];
  subject = [ 1  1  1;  2  2  2;  3  3  3;  4  4  4;  5  5  5; ...
              6  6  6;  7  7  7;  8  8  8;  9  9  9; 10 10 10];
 
- % One-way repeated measures ANOVA statistics
- [STATS, BOOTSTAT, AOVSTAT] = bootlm (words, {subject, seconds}, ...
-                                      'model', 'linear', 'display', 'off', ...
-                                      'varnames', {'subject', 'seconds'});
+ % One-way ANOVA table after wild cluster bootstrap
+ [STATS, BOOTSTAT, AOVSTAT] = bootlm (words, {seconds}, 'display', 'on', ...
+                                   'varnames', 'seconds', 'clustid', subject);
 
- fprintf ('ONE-WAY REPEATED MEASURES ANOVA SUMMARY\n')
- fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-            AOVSTAT.DF(2), AOVSTAT.DFE, AOVSTAT.F(2), ...
-            AOVSTAT.PVAL(2), AOVSTAT.MODEL{2});
+ fprintf ('ANOVA SUMMARY\n')
+ fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+          AOVSTAT.F(1), AOVSTAT.PVAL(1), AOVSTAT.MODEL{1});
 
  % 95% confidence intervals and p-values for the differences in mean number
- % of words recalled for the different times (using wild bootstrap).
- STATS = bootlm (words, {subject, seconds}, ...
-                            'model', 'linear', 'display', 'on', ...
-                            'varnames', {'subject', 'seconds'}, ...
-                            'dim', 2, 'posthoc', 'pairwise', ...
-                            'alpha', [.025, .975]);
+ % of words recalled for the different times (using wild cluster bootstrap).
+ STATS = bootlm (words, {seconds}, 'display', 'on', 'varnames', 'seconds', ...
+                            'clustid', subject, 'dim', 1, ...
+                            'posthoc', 'pairwise', 'alpha', [.025, .975]);
 
  % 95% credible intervals for the estimated marginal means of the number of
- % words recalled for each time (computed using Bayesian bootstrap).
- STATS = bootlm (words, {subject, seconds}, ...
-                            'model', 'linear', 'display', 'on', ...
-                            'varnames', {'subject', 'seconds'}, ...
-                            'dim', 2, 'method', 'bayesian', 'prior', 'auto');</pre>
+ % words recalled for each time (computed using Bayesian cluster bootstrap).
+ STATS = bootlm (words, {seconds}, 'display', 'on', 'varnames', 'seconds', ...
+                            'dim', 1, 'method', 'bayesian', 'prior', 'auto');</pre>
 <p>Produces the following output</p>
-<pre class="example">ONE-WAY REPEATED MEASURES ANOVA SUMMARY
-F(2,18) = 42.51, p = 0.0001 for the model: words ~ 1 + subject + seconds
+<pre class="example">MODEL FORMULA (based on Wilkinson's notation):
+
+words ~ 1 + seconds
+
+MODEL COEFFICIENTS
+
+name                                   coeff       CI_lower    CI_upper    p-val
+--------------------------------------------------------------------------------
+(Intercept)                            +11.00      +6.994      +15.01      <.001
+seconds_1                              +2.000      +1.244      +2.756      <.001
+seconds_2                              +3.200      +2.521      +3.879      <.001
+
+ANOVA SUMMARY
+F = 0.74, p = 0.0021 for the model: words ~ 1 + seconds
 
 MODEL FORMULA (based on Wilkinson's notation):
 
-words ~ 1 + subject + seconds
+words ~ 1 + seconds
 
 MODEL POSTHOC COMPARISONS
 
-name                                   mean        CI_lower    CI_upper   p-adj
+name                                   mean        CI_lower    CI_upper    p-adj
 --------------------------------------------------------------------------------
-1 - 2                                  -2.000      -2.734      -1.285      <.001
-1 - 5                                  -3.200      -3.865      -2.547      <.001
-2 - 5                                  -1.200      -2.056      -0.3454      .010
+1 - 2                                  -2.000      -2.750      -1.254       .001
+1 - 5                                  -3.200      -3.855      -2.526      <.001
+2 - 5                                  -1.200      -2.155      -0.2416      .020
 
 
 MODEL FORMULA (based on Wilkinson's notation):
 
-words ~ 1 + subject + seconds
+words ~ 1 + seconds
 
 MODEL ESTIMATED MARGINAL MEANS
 
 name                                   mean        CI_lower    CI_upper        N
 --------------------------------------------------------------------------------
-1                                      +11.00      +10.66      +11.37         10
-2                                      +13.00      +12.52      +13.48         10
-5                                      +14.20      +13.75      +14.65         10</pre>
+1                                      +11.00      +7.343      +14.59         10
+2                                      +13.00      +9.173      +16.81         10
+5                                      +14.20      +10.44      +17.87         10</pre>
 <p>and the following figure</p>
 <p><table class="images">
 <tr>
@@ -980,12 +545,12 @@ MODEL COEFFICIENTS
 
 name                                   coeff       CI_lower    CI_upper    p-val
 --------------------------------------------------------------------------------
-(Intercept)                            +5.667      +4.793      +6.540      <.001
-brands_1                               -1.333      -1.887      -0.7798      .010
-brands_2                               -2.167      -3.121      -1.213      <.001
-popper_1                               +1.167      +0.6056     +1.728       .017
-brands:popper_1                        -0.3333     -1.067      +0.4001      .333
-brands:popper_2                        -0.1667     -1.253      +0.9201      .726
+(Intercept)                            +5.667      +4.796      +6.538      <.001
+brands_1                               -1.333      -1.902      -0.7646      .011
+brands_2                               -2.167      -3.116      -1.217      <.001
+popper_1                               +1.167      +0.6063     +1.727       .018
+brands:popper_1                        -0.3333     -1.074      +0.4072      .331
+brands:popper_2                        -0.1667     -1.267      +0.9337      .734
 
 
 MODEL FORMULA (based on Wilkinson's notation):
@@ -994,11 +559,11 @@ popcorn ~ 1 + brands + popper + brands:popper
 
 MODEL POSTHOC COMPARISONS
 
-name                                   mean        CI_lower    CI_upper   p-adj
+name                                   mean        CI_lower    CI_upper    p-adj
 --------------------------------------------------------------------------------
-Gourmet - National                     +1.500      +1.127      +1.873      <.001
-Gourmet - Generic                      +2.250      +1.706      +2.794      <.001
-National - Generic                     +0.7500     +0.2082     +1.292       .011
+Gourmet - National                     +1.500      +1.129      +1.871      <.001
+Gourmet - Generic                      +2.250      +1.711      +2.789      <.001
+National - Generic                     +0.7500     +0.2068     +1.293       .012
 
 
 MODEL FORMULA (based on Wilkinson's notation):
@@ -1009,9 +574,9 @@ MODEL ESTIMATED MARGINAL MEANS
 
 name                                   mean        CI_lower    CI_upper        N
 --------------------------------------------------------------------------------
-Gourmet                                +6.250      +6.063      +6.440          6
-National                               +4.750      +4.558      +4.939          6
-Generic                                +4.000      +3.682      +4.328          6
+Gourmet                                +6.250      +6.062      +6.442          6
+National                               +4.750      +4.562      +4.939          6
+Generic                                +4.000      +3.667      +4.305          6
 
 
 MODEL FORMULA (based on Wilkinson's notation):
@@ -1020,9 +585,9 @@ popcorn ~ 1 + brands + popper + brands:popper
 
 MODEL POSTHOC COMPARISONS
 
-name                                   mean        CI_lower    CI_upper   p-adj
+name                                   mean        CI_lower    CI_upper    p-adj
 --------------------------------------------------------------------------------
-oil - air                              -1.000      -1.392      -0.6077     <.001
+oil - air                              -1.000      -1.382      -0.6181     <.001
 
 
 MODEL FORMULA (based on Wilkinson's notation):
@@ -1033,8 +598,8 @@ MODEL ESTIMATED MARGINAL MEANS
 
 name                                   mean        CI_lower    CI_upper        N
 --------------------------------------------------------------------------------
-oil                                    +4.500      +4.313      +4.682          9
-air                                    +5.500      +5.309      +5.684          9</pre>
+oil                                    +4.500      +4.314      +4.687          9
+air                                    +5.500      +5.312      +5.682          9</pre>
 <p>and the following figure</p>
 <p><table class="images">
 <tr>
@@ -1070,9 +635,8 @@ air                                    +5.500      +5.309      +5.684          9
 
  fprintf ('ANOVA SUMMARY\n')
  for i = 1:numel(AOVSTAT.F)
-   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-            AOVSTAT.DF(i), AOVSTAT.DFE, AOVSTAT.F(i), ...
-            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
+   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+            AOVSTAT.F(i), AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
  end
 
  % There is a significant interaction so we shall get estimated marginal means
@@ -1096,9 +660,9 @@ air                                    +5.500      +5.309      +5.684          9
                  'alpha', [0.025, 0.975]);</pre>
 <p>Produces the following output</p>
 <pre class="example">ANOVA SUMMARY
-F(1,42) = 2.03, p = 0.162 for the model: score ~ 1 + gender
-F(2,42) = 20.07, p = 0.0001 for the model: score ~ 1 + gender + score
-F(2,42) = 11.91, p = 0.0001 for the model: score ~ 1 + gender + score + gender:score
+F = 2.03, p = 0.166 for the model: score ~ 1 + gender
+F = 20.07, p = 0.0001 for the model: score ~ 1 + gender + score
+F = 11.91, p = 0.0001 for the model: score ~ 1 + gender + score + gender:score
 
 MODEL FORMULA (based on Wilkinson's notation):
 
@@ -1113,7 +677,7 @@ m, 0                                   +66.88      +59.70      +73.74          8
 f, 2                                   +62.50      +57.82      +66.98          8
 m, 2                                   +66.88      +57.88      +75.75          8
 f, 4                                   +57.50      +53.03      +62.83          8
-m, 4                                   +35.63      +28.28      +43.40          8
+m, 4                                   +35.62      +28.28      +43.40          8
 
 
 MODEL FORMULA (based on Wilkinson's notation):
@@ -1122,9 +686,9 @@ score ~ 1 + gender + score + gender:score
 
 MODEL POSTHOC COMPARISONS
 
-name                                   mean        CI_lower    CI_upper   p-adj
+name                                   mean        CI_lower    CI_upper    p-adj
 --------------------------------------------------------------------------------
-f, 0 - m, 0                            -6.250      -15.29      +2.670       .291
+f, 0 - m, 0                            -6.250      -15.29      +2.670       .275
 f, 2 - m, 2                            -4.375      -15.22      +6.147       .398
 f, 4 - m, 4                            +21.88      +12.20      +31.81      <.001
 
@@ -1135,12 +699,12 @@ score ~ 1 + gender + score + gender:score
 
 MODEL POSTHOC COMPARISONS
 
-name                                   mean        CI_lower    CI_upper   p-adj
+name                                   mean        CI_lower    CI_upper    p-adj
 --------------------------------------------------------------------------------
-f, 0 - f, 2                            -1.875      -8.048      +4.133      1.000
-f, 2 - f, 4                            +5.000      -2.170      +12.04       .638
-f, 0 - f, 4                            +3.125      -3.402      +9.507       .966
-m, 0 - m, 2                            +6.550e-15  -12.03      +11.70      1.000
+f, 0 - f, 2                            -1.875      -8.048      +4.133       .781
+f, 2 - f, 4                            +5.000      -2.170      +12.04       .440
+f, 0 - f, 4                            +3.125      -3.402      +9.507       .678
+m, 0 - m, 2                            -1.532e-14  -12.03      +11.70      1.000
 m, 2 - m, 4                            +31.25      +19.02      +43.41      <.001
 m, 0 - m, 4                            +31.25      +20.03      +41.98      <.001</pre>
 <p>and the following figure</p>
@@ -1182,18 +746,17 @@ m, 0 - m, 4                            +31.25      +20.03      +41.98      <.001
 
  fprintf ('ANOVA SUMMARY with gender averaged over levels of degree\n')
  for i = 1:numel(AOVSTAT.F)
-   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-            AOVSTAT.DF(i), AOVSTAT.DFE, AOVSTAT.F(i), ...
-            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
+   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+            AOVSTAT.F(i), AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
  end
 
- % Since the interaction is not significant (F(1,18) = 0.42, p = 0.567), we
+ % Since the interaction is not significant (F(1,18) = 0.42, p = 0.568), we
  % draw our attention to the main effects. We see that employees in this
  % have significantly different starting salaries depending or not on whether
- % they have a degree (F(1,18) = 87.20, p < 0.001). We can also see that once
+ % they have a degree (F(1,18) = 87.20, p < 0.0001). We can also see that once
  % we factor in any differences in salary attributed to having a degree,
  % there is a significant difference in the salaries of men and women at
- % this company (F(1,18) = 10.97, p = 0.005). 
+ % this company (F(1,18) = 10.97, p = 0.00893). 
 
  % ANOVA (including the main effect of degree averaged over all levels of
  % gender). In this order, the variability in salary only attributed to being
@@ -1210,13 +773,12 @@ m, 0 - m, 4                            +31.25      +20.03      +41.98      <.001
 
  fprintf ('\nANOVA SUMMARY with degree averaged over levels of gender\n')
  for i = 1:numel(AOVSTAT.F)
-   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-            AOVSTAT.DF(i), AOVSTAT.DFE, AOVSTAT.F(i), ...
-            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
+   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+            AOVSTAT.F(i), AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
  end
 
  % We can now see in the output that there is no significant difference in
- % salary between men and women in this company! (F(1,18) = 0.11, p = 0.752).
+ % salary between men and women in this company! (F(1,18) = 0.11, p = 0.755).
  % Why the discrepancy? There still seems to be a significant effect of
  % having a degree on the salary of people in this company (F(1,18) = 98.06, 
  % p < 0.001). Lets look at the regression coefficients to see what this
@@ -1265,17 +827,15 @@ m, 0 - m, 4                            +31.25      +20.03      +41.98      <.001
                              {'degree', 'gender'}, 'seed', 1);
 
  fprintf ('\nANOVA SUMMARY (with type II sums-of-squares for main effects)\n')
- fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s (gender)\n', ...
-            AOVSTAT1.DF(2), AOVSTAT1.DFE, AOVSTAT1.F(2), ...
-            AOVSTAT1.PVAL(2), AOVSTAT1.MODEL{2});
+ fprintf ('F = %.2f, p = %.3g for the model: %s (gender)\n', ...
+          AOVSTAT1.F(2), AOVSTAT1.PVAL(2), AOVSTAT1.MODEL{2});
 
  [~, ~, AOVSTAT2] = bootlm (salary, {gender, degree}, 'model', ...
                              'linear', 'display', 'off', 'varnames', ...
                              {'gender', 'degree'}, 'seed', 1);
 
- fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s (degree)\n', ...
-            AOVSTAT2.DF(2), AOVSTAT2.DFE, AOVSTAT2.F(2), ...
-            AOVSTAT2.PVAL(2), AOVSTAT2.MODEL{2});
+ fprintf ('F = %.2f, p = %.3g for the model: %s (degree)\n', ...
+          AOVSTAT2.F(2), AOVSTAT2.PVAL(2), AOVSTAT2.MODEL{2});
 
  % Here is the output from 'anovan' for comparison:
  % ANOVA TABLE (Type II sums-of-squares):
@@ -1288,14 +848,14 @@ m, 0 - m, 4                            +31.25      +20.03      +41.98      <.001
  % Total               323.86      21</pre>
 <p>Produces the following output</p>
 <pre class="example">ANOVA SUMMARY with gender averaged over levels of degree
-F(1,18) = 87.20, p = 0.0001 for the model: salary ~ 1 + degree
-F(1,18) = 10.97, p = 0.00495 for the model: salary ~ 1 + degree + gender
-F(1,18) = 0.42, p = 0.567 for the model: salary ~ 1 + degree + gender + degree:gender
+F = 87.20, p = 0.0001 for the model: salary ~ 1 + degree
+F = 10.97, p = 0.0089 for the model: salary ~ 1 + degree + gender
+F = 0.42, p = 0.568 for the model: salary ~ 1 + degree + gender + degree:gender
 
 ANOVA SUMMARY with degree averaged over levels of gender
-F(1,18) = 0.11, p = 0.752 for the model: salary ~ 1 + gender
-F(1,18) = 98.06, p = 0.0001 for the model: salary ~ 1 + gender + degree
-F(1,18) = 0.42, p = 0.567 for the model: salary ~ 1 + gender + degree + gender:degree
+F = 0.11, p = 0.755 for the model: salary ~ 1 + gender
+F = 98.06, p = 0.0001 for the model: salary ~ 1 + gender + degree
+F = 0.42, p = 0.568 for the model: salary ~ 1 + gender + degree + gender:degree
 
 MODEL FORMULA (based on Wilkinson's notation):
 
@@ -1305,26 +865,16 @@ MODEL COEFFICIENTS
 
 name                                   coeff       CI_lower    CI_upper         
 --------------------------------------------------------------------------------
-(Intercept)                            +25.00      +24.11      +25.92           
-gender_1                               +2.000      +0.2268     +3.812           
-degree_1                               -8.000      -9.803      -6.046           
-gender:degree_1                        +1.000      -1.649      +3.549           
+(Intercept)                            +25.00      +24.04      +26.05           
+gender_1                               +2.000      +0.07344    +4.055           
+degree_1                               -8.000      -10.05      -5.931           
+gender:degree_1                        +1.000      -1.913      +3.842           
 
 ans =
-{
-  [1,1] =
-  {
-    [1,1] = f
-    [2,1] = m
-  }
+  2x1 cell array
 
-  [2,1] =
-  {
-    [1,1] = 1
-    [2,1] = 0
-  }
-
-}
+    {2x1 cell}    
+    {2x1 cell}    
 
 
 MODEL FORMULA (based on Wilkinson's notation):
@@ -1342,8 +892,8 @@ m, 0                                   +20.00      +19.02      +21.03          7
 
 
 ANOVA SUMMARY (with type II sums-of-squares for main effects)
-F(1,19) = 11.31, p = 0.00481 for the model: salary ~ 1 + degree + gender (gender)
-F(1,19) = 101.13, p = 0.0001 for the model: salary ~ 1 + gender + degree (degree)</pre>
+F = 11.31, p = 0.0072 for the model: salary ~ 1 + degree + gender (gender)
+F = 101.13, p = 0.0001 for the model: salary ~ 1 + gender + degree (degree)</pre>
 <p>and the following figure</p>
 <p><table class="images">
 <tr>
@@ -1423,9 +973,8 @@ years                                  +9.455      +8.843      +10.07      <.001
 
  fprintf ('\nANCOVA SUMMARY (with type I sums-of-squares)\n')
  for i = 1:numel(AOVSTAT.F)
-   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-            AOVSTAT.DF(i), AOVSTAT.DFE, AOVSTAT.F(i), ...
-            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
+   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+            AOVSTAT.F(i), AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
  end
 
  % Perform ANCOVA (type II sums-of-squares)
@@ -1436,18 +985,16 @@ years                                  +9.455      +8.843      +10.07      <.001
                            'contrasts', 'anova', 'seed', 1);
 
  fprintf ('\nANOVA SUMMARY (with type II sums-of-squares)\n')
- fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s (species)\n', ...
-            AOVSTAT1.DF(2), AOVSTAT1.DFE, AOVSTAT1.F(2), ...
-            AOVSTAT1.PVAL(2), AOVSTAT1.MODEL{2});
+ fprintf ('F = %.2f, p = %.3g for the model: %s (species)\n', ...
+          AOVSTAT1.F(2), AOVSTAT1.PVAL(2), AOVSTAT1.MODEL{2});
 
  [~, ~, AOVSTAT2] = bootlm (pulse, {species, temp}, 'model', ...
                            'linear', 'continuous', 2, 'display', 'off', ...
                            'varnames', {'species', 'temp'}, ...
                            'contrasts', 'anova', 'seed', 1);
 
- fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s (temp)\n', ...
-            AOVSTAT2.DF(2), AOVSTAT2.DFE, AOVSTAT2.F(2), ...
-            AOVSTAT2.PVAL(2), AOVSTAT2.MODEL{2});
+ fprintf ('F = %.2f, p = %.3g for the model: %s (temp)\n', ...
+          AOVSTAT2.F(2), AOVSTAT2.PVAL(2), AOVSTAT2.MODEL{2});
 
  % Estimate regression coefficients using 'anova' contrast coding 
  STATS = bootlm (pulse, {temp, species}, 'model', 'linear', ...
@@ -1471,12 +1018,12 @@ years                                  +9.455      +8.843      +10.07      <.001
                            'contrasts', 'anova');</pre>
 <p>Produces the following output</p>
 <pre class="example">ANCOVA SUMMARY (with type I sums-of-squares)
-F(1,28) = 2474.04, p = 0.0001 for the model: pulse ~ 1 + temp
-F(1,28) = 187.40, p = 0.0001 for the model: pulse ~ 1 + temp + species
+F = 2474.04, p = 0.0001 for the model: pulse ~ 1 + temp
+F = 187.40, p = 0.0001 for the model: pulse ~ 1 + temp + species
 
 ANOVA SUMMARY (with type II sums-of-squares)
-F(1,28) = 187.40, p = 0.0001 for the model: pulse ~ 1 + temp + species (species)
-F(1,28) = 1371.35, p = 0.0001 for the model: pulse ~ 1 + species + temp (temp)
+F = 187.40, p = 0.0001 for the model: pulse ~ 1 + temp + species (species)
+F = 1371.35, p = 0.0001 for the model: pulse ~ 1 + species + temp (temp)
 
 MODEL FORMULA (based on Wilkinson's notation):
 
@@ -1497,7 +1044,7 @@ pulse ~ 1 + temp + species
 
 MODEL POSTHOC COMPARISONS
 
-name                                   mean        CI_lower    CI_upper   p-adj
+name                                   mean        CI_lower    CI_upper    p-adj
 --------------------------------------------------------------------------------
 niv - ex                               -10.07      -11.41      -8.716      <.001
 
@@ -1558,9 +1105,8 @@ niv                                    +68.34      +67.61      +69.17         17
 
  fprintf ('ANOVA SUMMARY\n')
  for i = 1:numel(AOVSTAT.F)
-   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-            AOVSTAT.DF(i), AOVSTAT.DFE, AOVSTAT.F(i), ...
-            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
+   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+            AOVSTAT.F(i), AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
  end
 
  % Check regression coefficient corresponding to drug x feedback x diet
@@ -1583,13 +1129,13 @@ niv                                    +68.34      +67.61      +69.17         17
                                     'varnames', {'diet', 'drug', 'feedback'});</pre>
 <p>Produces the following output</p>
 <pre class="example">ANOVA SUMMARY
-F(1,60) = 33.20, p = 0.0001 for the model: BP ~ 1 + diet
-F(2,60) = 11.73, p = 0.000179 for the model: BP ~ 1 + diet + drug
-F(1,60) = 13.07, p = 0.000561 for the model: BP ~ 1 + diet + drug + feedback
-F(2,60) = 2.88, p = 0.0628 for the model: BP ~ 1 + diet + drug + feedback + diet:drug
-F(1,60) = 0.20, p = 0.648 for the model: BP ~ 1 + diet + drug + feedback + diet:drug + diet:feedback
-F(2,60) = 0.83, p = 0.434 for the model: BP ~ 1 + diet + drug + feedback + diet:drug + diet:feedback + drug:feedback
-F(2,60) = 3.43, p = 0.0388 for the model: BP ~ 1 + diet + drug + feedback + diet:drug + diet:feedback + drug:feedback + diet:drug:feedback
+F = 33.20, p = 0.0001 for the model: BP ~ 1 + diet
+F = 11.73, p = 0.0002 for the model: BP ~ 1 + diet + drug
+F = 13.07, p = 0.0009 for the model: BP ~ 1 + diet + drug + feedback
+F = 2.88, p = 0.062 for the model: BP ~ 1 + diet + drug + feedback + diet:drug
+F = 0.20, p = 0.64 for the model: BP ~ 1 + diet + drug + feedback + diet:drug + diet:feedback
+F = 0.83, p = 0.436 for the model: BP ~ 1 + diet + drug + feedback + diet:drug + diet:feedback + drug:feedback
+F = 3.43, p = 0.0398 for the model: BP ~ 1 + diet + drug + feedback + diet:drug + diet:feedback + drug:feedback + diet:drug:feedback
 
 MODEL FORMULA (based on Wilkinson's notation):
 
@@ -1608,7 +1154,7 @@ diet:drug_1                            -33.00      -53.28      -12.72       .004
 diet:drug_2                            -17.00      -37.94      +3.936       .104
 diet:feedback_1                        -16.00      -35.17      +3.172       .095
 drug:feedback_1                        -24.00      -42.08      -5.922       .011
-drug:feedback_2                        -4.475e-14  -19.93      +19.93      1.000
+drug:feedback_2                        -7.598e-16  -19.93      +19.93      1.000
 diet:drug:feedback_1                   +35.00      +7.926      +62.07       .013
 diet:drug:feedback_2                   +5.000      -24.39      +34.39       .737
 
@@ -1619,19 +1165,19 @@ BP ~ 1 + diet + drug + feedback + diet:drug + diet:feedback + drug:feedback + di
 
 MODEL POSTHOC COMPARISONS
 
-name                                   mean        CI_lower    CI_upper   p-adj
+name                                   mean        CI_lower    CI_upper    p-adj
 --------------------------------------------------------------------------------
-1, X, 1 - 0, X, 1                      +1.000      -15.45      +17.45      1.000
-0, Y, 1 - 0, X, 1                      +36.00      +21.52      +50.48       .002
-1, Y, 1 - 0, X, 1                      +4.000      -8.896      +16.90      1.000
-0, Z, 1 - 0, X, 1                      +21.00      +6.775      +35.22       .057
-1, Z, 1 - 0, X, 1                      +5.000      -8.547      +18.55      1.000
-0, X, 0 - 0, X, 1                      +20.00      +7.164      +32.84       .057
-1, X, 0 - 0, X, 1                      +5.000      -6.615      +16.62      1.000
-0, Y, 0 - 0, X, 1                      +32.00      +20.00      +44.00       .002
-1, Y, 0 - 0, X, 1                      +19.00      +2.687      +35.31       .190
-0, Z, 0 - 0, X, 1                      +41.00      +25.53      +56.47       .001
-1, Z, 0 - 0, X, 1                      +14.00      -4.969      +32.97       .603
+1, X, 1 - 0, X, 1                      +1.000      -15.45      +17.45       .887
+0, Y, 1 - 0, X, 1                      +36.00      +21.52      +50.48       .003
+1, Y, 1 - 0, X, 1                      +4.000      -8.896      +16.90       .779
+0, Z, 1 - 0, X, 1                      +21.00      +6.775      +35.22       .062
+1, Z, 1 - 0, X, 1                      +5.000      -8.547      +18.55       .813
+0, X, 0 - 0, X, 1                      +20.00      +7.164      +32.84       .054
+1, X, 0 - 0, X, 1                      +5.000      -6.615      +16.62       .813
+0, Y, 0 - 0, X, 1                      +32.00      +20.00      +44.00       .003
+1, Y, 0 - 0, X, 1                      +19.00      +2.687      +35.31       .124
+0, Z, 0 - 0, X, 1                      +41.00      +25.53      +56.47       .003
+1, Z, 0 - 0, X, 1                      +14.00      -4.969      +32.97       .411
 
 
 MODEL FORMULA (based on Wilkinson's notation):
@@ -1705,9 +1251,8 @@ name                                   mean        CI_lower    CI_upper        N
 
  fprintf ('ANOVA / ANCOVA SUMMARY\n')
  for i = 1:numel(AOVSTAT.F)
-   fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-            AOVSTAT.DF(i), AOVSTAT.DFE, AOVSTAT.F(i), ...
-            AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
+   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+            AOVSTAT.F(i), AOVSTAT.PVAL(i), AOVSTAT.MODEL{i});
  end
 
  % Estimate regression coefficients
@@ -1737,10 +1282,10 @@ name                                   mean        CI_lower    CI_upper        N
                             'contrasts', 'anova');</pre>
 <p>Produces the following output</p>
 <pre class="example">ANOVA / ANCOVA SUMMARY
-F(1,53) = 44.02, p = 0.0001 for the model: score ~ 1 + age
-F(2,53) = 19.74, p = 0.0001 for the model: score ~ 1 + age + exercise
-F(1,53) = 11.10, p = 0.00222 for the model: score ~ 1 + age + exercise + treatment
-F(2,53) = 4.45, p = 0.0147 for the model: score ~ 1 + age + exercise + treatment + exercise:treatment
+F = 44.02, p = 0.0001 for the model: score ~ 1 + age
+F = 19.74, p = 0.0001 for the model: score ~ 1 + age + exercise
+F = 11.10, p = 0.0022 for the model: score ~ 1 + age + exercise + treatment
+F = 4.45, p = 0.0154 for the model: score ~ 1 + age + exercise + treatment + exercise:treatment
 
 MODEL FORMULA (based on Wilkinson's notation):
 
@@ -1765,13 +1310,13 @@ score ~ 1 + age + exercise + treatment + exercise:treatment
 
 MODEL POSTHOC COMPARISONS
 
-name                                   mean        CI_lower    CI_upper   p-adj
+name                                   mean        CI_lower    CI_upper    p-adj
 --------------------------------------------------------------------------------
-mid, yes - lo, yes                     +0.01746    -5.617      +5.652      1.000
+mid, yes - lo, yes                     +0.01746    -5.617      +5.652       .995
 hi, yes - lo, yes                      -13.70      -18.46      -8.949      <.001
-lo, no - lo, yes                       +1.529      -3.395      +6.452      1.000
-mid, no - lo, yes                      +1.701      -3.195      +6.597      1.000
-hi, no - lo, yes                       -3.957      -9.130      +1.217       .502
+lo, no - lo, yes                       +1.529      -3.395      +6.452       .763
+mid, no - lo, yes                      +1.701      -3.195      +6.597       .763
+hi, no - lo, yes                       -3.957      -9.130      +1.217       .332
 
 
 MODEL FORMULA (based on Wilkinson's notation):
@@ -1898,15 +1443,89 @@ name                                   mean        CI_lower    CI_upper        N
                                       'seed', 1, 'display', 'off');
  
  fprintf ('ANOVA SUMMARY\n')
- fprintf ('F(%u,%u) = %.2f, p = %.3g for the model: %s\n', ...
-            AOVSTAT.DF(1), AOVSTAT.DFE, AOVSTAT.F(1), ...
-            AOVSTAT.PVAL(1), AOVSTAT.MODEL{1});</pre>
+ fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+          AOVSTAT.F(1), AOVSTAT.PVAL(1), AOVSTAT.MODEL{1});</pre>
 <p>Produces the following output</p>
 <pre class="example">ANOVA SUMMARY
-F(2,21) = 17.08, p = 0.018 for the model: data ~ 1 + X1</pre>
+F = 17.08, p = 0.0525 for the model: data ~ 1 + X1</pre>
 </div>
 
 <h3><a name="14">Demonstration 14</a></h3>
+<div class="demo">
+<p>The following code</p>
+<pre class="example">
+
+ % Variations in design for two-way ANOVA (2x2) with interaction. 
+
+ % Arousal was measured in rodents assigned to four experimental groups in a
+ % between-subjects design with two factors: group (lesion/control) and
+ % stimulus (fearful/neutral). In this design, each rodent is allocated to one 
+ % combination of levels in group and stimulus, and a single measurment of
+ % arousal is made. The question we are asking here is, does the effect of a
+ % fear-inducing stimulus on arousal depend on whether or not rodents had a
+ % lesion?
+
+ group = {'control' 'control' 'control' 'control' 'control' 'control' ...
+          'lesion'  'lesion'  'lesion'  'lesion'  'lesion'  'lesion'  ...
+          'control' 'control' 'control' 'control' 'control' 'control' ...
+          'lesion'  'lesion'  'lesion'  'lesion'  'lesion'  'lesion'};
+ 
+ stimulus = {'fearful' 'fearful' 'fearful' 'fearful' 'fearful' 'fearful' ...
+             'fearful' 'fearful' 'fearful' 'fearful' 'fearful' 'fearful' ...
+             'neutral' 'neutral' 'neutral' 'neutral' 'neutral' 'neutral' ...
+             'neutral' 'neutral' 'neutral' 'neutral' 'neutral' 'neutral'};
+
+ arousal = [0.78 0.86 0.65 0.83 0.78 0.81 0.65 0.69 0.61 0.65 0.59 0.64 ...
+            0.54 0.6 0.67 0.63 0.56 0.55 0.645 0.565 0.625 0.485 0.655 0.515];
+
+ [stats, bootstat, aovstat] = bootlm (arousal, {group, stimulus}, ...
+                                      'seed', 1, 'display', 'off', ...
+                                      'model', 'full', ...
+                                      'varnames', {'group', 'stimulus'});
+
+ fprintf ('ANOVA SUMMARY for the between-subjects design.\n')
+ for i = 1:numel(aovstat.F)
+   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+            aovstat.F(i), aovstat.PVAL(i), aovstat.MODEL{i});
+ end
+ 
+ % Lets consider having a mixed design with rodents allocated into control and
+ % lesion groups but with two arousal measurements made for each rodent, the
+ % first to a neutral stimulus and the second to a fearful stimulus. Thus, we
+ % now need to introduce another variable, a random effect, which defines the
+ % identity of the rodent of each measurement:
+
+ id = [1 2 3 4 5 6 7 8 9 10 11 12 1 2 3 4 5 6 7 8 9 10 11 12];
+
+ % Instead of fitting a non-linear mixed model, we will fit the same linear
+ % model but use wild cluster bootstrap resambling to capture the dependence
+ % structure in the data by providing the id variable to the 'clustid' input
+ % argument.
+
+ [stats, bootstat, aovstat] = bootlm (arousal, {group, stimulus}, ...
+                                      'seed', 1, 'display', 'off', ...
+                                      'model', 'full', ...
+                                      'clustid', id, ...
+                                      'varnames', {'group', 'stimulus'});
+
+ fprintf ('\nANOVA SUMMARY for the mixed between/within subjects design.\n')
+ for i = 1:numel(aovstat.F)
+   fprintf ('F = %.2f, p = %.3g for the model: %s\n', ...
+            aovstat.F(i), aovstat.PVAL(i), aovstat.MODEL{i});
+ end</pre>
+<p>Produces the following output</p>
+<pre class="example">ANOVA SUMMARY for the between-subjects design.
+F = 10.36, p = 0.0093 for the model: arousal ~ 1 + group
+F = 26.39, p = 0.0003 for the model: arousal ~ 1 + group + stimulus
+F = 7.89, p = 0.0117 for the model: arousal ~ 1 + group + stimulus + group:stimulus
+
+ANOVA SUMMARY for the mixed between/within subjects design.
+F = 10.36, p = 0.0001 for the model: arousal ~ 1 + group
+F = 26.39, p = 0.0071 for the model: arousal ~ 1 + group + stimulus
+F = 7.89, p = 0.046 for the model: arousal ~ 1 + group + stimulus + group:stimulus</pre>
+</div>
+
+<h3><a name="15">Demonstration 15</a></h3>
 <div class="demo">
 <p>The following code</p>
 <pre class="example">
@@ -1936,7 +1555,7 @@ F(2,21) = 17.08, p = 0.018 for the model: data ~ 1 + X1</pre>
  fprintf ('PREDICTION ERROR of the FULL MODEL = %.2f\n', PRED_ERR.PE(3))
 
  % Note: The value of prediction error is lower than the 3.00 calculated by
- % Efron and Tibhirani (1993) using the same refined bootstrap procedure,
+ % Efron and Tibshirani (1993) using the same refined bootstrap procedure,
  % because they have used case resampling whereas we have used wild bootstrap
  % resampling. The equivalent value of Cp (eq. to AIC) statistic is 2.96.
 
@@ -2016,12 +1635,12 @@ PRED_ERR =
 <tr>
 <th class="images">Figure 1</th>
 </tr><tr>
-<td class="images"><img src="images/bootlm_1401.png" class="demo"/></td>
+<td class="images"><img src="images/bootlm_1501.png" class="demo"/></td>
 </tr></table>
 </p>
 </div>
 
-<h3><a name="15">Demonstration 15</a></h3>
+<h3><a name="16">Demonstration 16</a></h3>
 <div class="demo">
 <p>The following code</p>
 <pre class="example">
@@ -2157,10 +1776,10 @@ PRED_ERR =
 
 ans =
 
-   0.00047443
-     0.060263
-      0.11655
-     0.022759
+   0.00020002
+      0.10891
+      0.17192
+     0.017102
 
 ans =
 

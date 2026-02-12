@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
   <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-  <meta name="date" content="2024-09-02"/>
+  <meta name="date" content="2026-02-11"/>
   <meta name="generator" content="generate_html 0.3.3" />
   <meta name="author" content="Andrew Penn" />
   <meta name="description" content="A package for statistical analysis using resampling methods." />
@@ -37,22 +37,20 @@
  -- Function File: [STATS, BOOTSTAT, BOOTSSE, BOOTFIT] = bootwild (y, ...)
 
      'bootwild (y)' performs a null hypothesis significance test for the
-     mean of y being equal to 0. This function implements wild bootstrap-t
-     resampling of Webb's 6-point distribution of the residuals and computes
-     confidence intervals and p-values [1-4]. The following statistics are
-     printed to the standard output:
+     mean of y being equal to 0. This function performs wild (cluster)
+     unrestricted bootstrap-t resampling of Webb's 6-point distribution of the
+     residuals and computes confidence intervals and p-values [1-4]. The
+     following statistics are printed to the standard output:
         - original: the mean of the data vector y
-        - std_err: heteroscedasticity-consistent standard error(s) (HC1)
+        - std_err: heteroscedasticity-consistent standard error(s) (HC1 or CR1)
         - CI_lower: lower bound(s) of the 95% bootstrap-t confidence interval
         - CI_upper: upper bound(s) of the 95% bootstrap-t confidence interval
         - tstat: Student's t-statistic
         - pval: two-tailed p-value(s) for the parameter(s) being equal to 0
         - fpr: minimum false positive risk for the corresponding p-value
           By default, the confidence intervals are symmetric bootstrap-t
-          confidence intervals. The p-values are computed following both of
-          the guidelines by Hall and Wilson [5]. The minimum false positive
-          risk (FPR) is computed according to the Sellke-Berger approach as
-          as described in [6,7].
+          confidence intervals. The minimum false positive risk (FPR) is
+          computed according to the Sellke-Berger approach as described [5,6].
 
      'bootwild (y, X)' also specifies the design matrix (X) for least squares
      regression of y on X. X should be a column vector or matrix the same
@@ -94,6 +92,13 @@
         The default value of ALPHA is the scalar: 0.05, for symmetric 95% 
         bootstrap-t confidence interval(s).
 
+     'bootwild (y, X, ..., NBOOT, {ALPHA})' as above, except that p-values
+     become independent of the confidence intervals since they are adjusted
+     to control the family-wise error rate (FWER) across multiple comparisons
+     using the step-down max |T| procedure [7]. Confidence intervals remain
+     based on the individual bootstrap-t distribution even when FWER control
+     is requested. By default, no multiple comparison procedure is used.
+
      'bootwild (y, X, ..., NBOOT, ALPHA, SEED)' initialises the Mersenne
      Twister random number generator using an integer SEED value so that
      'bootwild' results are reproducible.
@@ -118,6 +123,10 @@
      N-by-NBOOT matrix containing the N fitted values for each of the NBOOT
      bootstrap resamples.
 
+     '[STATS, BOOTSTAT, BOOTSSE, BOOTFIT, BOOTDAT] = bootwild (...)  also
+     returns an N-by-NBOOT matrix containing the N data points for each of
+     the NBOOT bootstrap resamples.
+
   Bibliography:
   [1] Wu (1986). Jackknife, bootstrap and other resampling methods in
         regression analysis (with discussions). Ann Stat.. 14: 1261–1350. 
@@ -127,12 +136,12 @@
         errors. Can J Econ. https://doi.org/10.1111/caje.12661
   [4] Cameron and Miller (2015) A Practitioner’s Guide to Cluster-Robust
         Inference. J Hum Resour. 50(2):317-372
-  [5] Hall and Wilson (1991) Two Guidelines for Bootstrap Hypothesis Testing.
-        Biometrics, 47(2), 757-762
-  [6] Colquhoun (2019) The False Positive Risk: A Proposal Concerning What
+  [5] Colquhoun (2019) The False Positive Risk: A Proposal Concerning What
         to Do About p-Values, Am Stat. 73:sup1, 192-201
-  [7] Sellke, Bayarri and Berger (2001) Calibration of p-values for Testing
+  [6] Sellke, Bayarri and Berger (2001) Calibration of p-values for Testing
         Precise Null Hypotheses. Am Stat. 55(1), 62-71
+  [7] Westfall, P. H., & Young, S. S. (1993). Resampling-Based Multiple 
+        Testing: Examples and Methods for p-Value Adjustment. Wiley.
 
   bootwild (version 2024.05.23)
   Author: Andrew Charles Penn
@@ -171,7 +180,7 @@
 
 Bootstrap settings: 
  Function: pinv (X) * y
- Resampling method: Wild bootstrap-t
+ Resampling method: Wild unrestricted bootstrap-t
  Number of resamples: 1999 
  Standard error calculations: Heteroscedasticity-Consistent (HC1)
  Confidence interval (CI) type: Symmetric bootstrap-t interval
@@ -209,7 +218,7 @@ Test Statistics:
 
 Bootstrap settings: 
  Function: pinv (X) * y
- Resampling method: Wild bootstrap-t
+ Resampling method: Wild unrestricted bootstrap-t
  Number of resamples: 1999 
  Standard error calculations: Heteroscedasticity-Consistent (HC1)
  Confidence interval (CI) type: Symmetric bootstrap-t interval
@@ -218,8 +227,8 @@ Bootstrap settings:
 
 Test Statistics: 
  original     std_err      CI_lower     CI_upper     t-stat      p-val     FPR
- +175.5       2.563        +169.8       +181.2       +68.5       <.001    .010
- +0.1904      0.08460      +0.003534    +0.3773      +2.25        .047    .280</pre>
+ +175.5       2.563        +169.6       +181.4       +68.5       <.001    .010
+ +0.1904      0.08460      -0.0008131   +0.3817      +2.25        .052    .295</pre>
 </div>
 
 <p>Package: <a href="../index.html">statistics-resampling</a></p>

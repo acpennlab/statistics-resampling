@@ -10,8 +10,8 @@
 % -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED)
 % -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED, TOL)
 % -- Function File: S = bootridge (Y, X, ...)
-% -- Function File: [S, Yhat] = bootridge (Y, X, ...)
-% -- Function File: [S, Yhat, P] = bootridge (Y, X, ...)
+% -- Function File: [S, YHAT] = bootridge (Y, X, ...)
+% -- Function File: [S, YHAT, P] = bootridge (Y, X, ...)
 %
 %      'bootridge (Y, X)' fits an empirical Bayes ridge regression model using
 %      a linear Normal (Gaussian) likelihood with an empirical Bayes normal
@@ -232,7 +232,7 @@
 %            (columns) in Y after internal standardization, and the predictors
 %            X after internal centering.
 %
-%        o R_table
+%        o RTAB
 %            Matrix summarizing residual correlations (strictly lower-
 %            triangular pairs). The columns correspond to Outcome J, Outcome I, 
 %            and the coefficient and credible intervals for their correlation.
@@ -243,9 +243,9 @@
 %            MARGINAL PRIORS and DETAIL below. Diagonal entries are undefined
 %            and not included.
 %
-%      '[S, Yhat] = bootridge (Y, X, ...)' returns fitted values.
+%      '[S, YHAT] = bootridge (Y, X, ...)' returns fitted values.
 %
-%      '[S, Yhat, P] = bootridge (Y, X, ...)' returns the predictor-wise penalty
+%      '[S, YHAT, P] = bootridge (Y, X, ...)' returns the predictor-wise penalty
 %      weights used to normalize shrinkage across features of different scales.
 %
 %      DETAIL: The model implements an empirical Bayes ridge regression that
@@ -893,7 +893,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     [I, J] = find (tril (true (q), -1));
 
     % Assemble table-like cell array for correlations
-    R_table = cat (2, J, I, R, R_CI_lower, R_CI_upper);
+    RTAB = cat (2, J, I, R, R_CI_lower, R_CI_upper);
 
   end
 
@@ -914,9 +914,9 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   S.tol = tol;
   S.iter = iter;
   S.pred_err = pred_err;
-  if (q > 1); S.R_table = R_table; end
+  if (q > 1); S.RTAB = RTAB; end
   if (nargout > 1)
-    Yhat = X * Beta;
+    YHAT = X * Beta;
   end
 
   % Display summary
@@ -1604,7 +1604,7 @@ end
 %! fprintf ('Number of coefficients: [%s] (Expected: [15 x 2000])\n', ...
 %!           num2str (size (S.Coefficient)));
 %! fprintf ('Number of pairwise correlations: [%s] (Expected: 1999000)\n', ...
-%!           num2str (size (S.R_table, 1)));
+%!           num2str (size (S.RTAB, 1)));
 %! fprintf ('Positive detections (i.e. discoveries) defined hereon as BF10 > 20');
 %! fprintf ('\nFalse positive rate (FPR): %.1f%%\n', fp_rate * 100);
 %! fprintf ('Precision (i.e. 1-FDR): %.1f%%\n', precision * 100);
@@ -1678,7 +1678,7 @@ end
 %! fprintf ('Number of coefficients: [%s] (Expected: [50 x 15000])\n', ...
 %!           num2str (size (S.Coefficient)));
 %! fprintf ('Number of pairwise correlations: [%s] (Expected: 112492500)\n', ...
-%!           num2str (size (S.R_table, 1)));
+%!           num2str (size (S.RTAB, 1)));
 
 %!demo
 %! %% --- Stress-test: High-p Voxel-wise Neural Encoding Simulation ---

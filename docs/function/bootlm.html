@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
   <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-  <meta name="date" content="2026-02-12"/>
+  <meta name="date" content="2026-02-13"/>
   <meta name="generator" content="generate_html 0.3.3" />
   <meta name="author" content="Andrew Penn" />
   <meta name="description" content="A package for statistical analysis using resampling methods." />
@@ -169,6 +169,379 @@
                   The bootlm function uses a dedicated prior for each linear
                   estimate. Please see the help documentation for the function 
                   'bootbayes' for more information about the prior [2].
+
+     '[...] = bootlm (Y, GROUP, ..., 'method', 'bayesian', 'prior', PRIOR)'
+
+       <> Sets the prior for Bayesian bootstrap. Possible values are:
+
+             o scalar: A non-negative (>= 0) scalar (Dirichlet concentration 
+                 alpha) that parametrizes the symmetric Dirichlet used to
+                 generate weights for linear least squares and the 
+                 nonparametric Bayesian bootstrap posterior. (Note: alpha = 0 
+                 is the Haldane case.)
+
+             o 'auto' (default): Applies a degrees-of-freedom style correction
+                 so that the posterior variance (rows of BOOTSTAT) becomes an
+                 unbiased estimator of sampling variance. bootlm uses a
+                 dedicated prior for each linear estimate*. See 'bootbayes'
+                 for the exact formulas and details [2].
+
+     '[...] = bootlm (Y, GROUP, ..., 'alpha', ALPHA)'
+
+       <> ALPHA is numeric and sets the lower and upper bounds of the
+          confidence or credible interval(s). The value(s) of ALPHA must be
+          between 0 and 1. ALPHA can either be:
+
+             o scalar: Set the central mass of the intervals to 100*(1-ALPHA)%.
+                  For example, 0.05 for a 95% interval. If METHOD is 'wild',
+                  then the intervals are symmetric bootstrap-t confidence
+                  intervals [1]. If METHOD is 'bayesian', then the intervals
+                  are shortest probability credible intervals [2].
+
+             o vector: A pair of probabilities defining the lower and upper
+                  and upper bounds of the interval(s) as 100*(ALPHA(1))% and 
+                  100*(ALPHA(2))% respectively. For example, [.025, .975] for
+                  a 95% interval. If METHOD is 'wild', then the intervals are
+                  asymmetric bootstrap-t confidence intervals [1]. If METHOD is
+                  'bayesian', then the intervals are simple percentile credible
+                  intervals [2].
+
+               The default value of ALPHA is the scalar: 0.05.
+
+     '[...] = bootlm (Y, GROUP, ..., 'display', DISPOPT)'
+
+       <> DISPOPT can be either 'on' (or true, default) or 'off' (or false)
+          and controls the display of the model formula, a table of model
+          parameter estimates and a figure of diagnostic plots. The p-values
+          are formatted in APA-style.
+
+     '[...] = bootlm (Y, GROUP, ..., 'contrasts', CONTRASTS)'
+
+       <> CONTRASTS can be specified as one of the following:
+
+             o A string corresponding to one of the built-in contrasts
+               listed below:
+
+                  o 'treatment' (default): Treatment contrast (or dummy)
+                    coding. The intercept represents the mean of the first
+                    level of all the predictors. Each slope coefficient
+                    compares one level of a predictor (or interaction
+                    between predictors) with the first level for that/those
+                    predictor(s), at the first level of all the other
+                    predictors. The first (or reference level) of the
+                    predictor(s) is defined as the first level of the
+                    predictor (or combination of the predictors) listed in
+                    the GROUP argument. This type of contrast is ideal for
+                    one-way designs or factorial designs of nominal predictor
+                    variables that have an obvious reference or control group.
+
+                  o 'anova' or 'simple': Simple (ANOVA) contrast coding. The
+                    intercept represents the grand mean. Each slope coefficient
+                    represents the difference between one level of a predictor
+                    (or interaction between predictors) to the first level for
+                    that/those predictor(s), averaged over all levels of the
+                    other predictor(s). The first (or reference level) of the
+                    predictor(s) is defined as the first level of the predictor
+                    (or combination of the predictors) listed in the GROUP
+                    argument. The columns of this contrast coding scheme sum
+                    to zero. This type of contrast is ideal for nominal
+                    predictor variables that have an obvious reference or
+                    control group and that are modelled together with a
+                    covariate or blocking factor.
+
+                  o 'poly': Polynomial contrast coding for trend analysis.
+                    The intercept represents the grand mean. The remaining
+                    slope coefficients returned are for linear, quadratic,
+                    cubic etc. trends across the levels. In addition to the
+                    columns of this contrast coding scheme summing to zero,
+                    this contrast coding is orthogonal (i.e. the off-diagonal
+                    elements of its autocovariance matrix are zero) and so
+                    the slope coefficients are independent. This type of
+                    contrast is ideal for ordinal predictor variables, in
+                    particular, predictors with ordered levels that are evenly
+                    spaced.
+
+                  o 'helmert': Helmert contrast coding. The intercept
+                    represents the grand mean. Each slope coefficient
+                    represents the difference between one level of a predictor
+                    (or interaction between predictors) with the mean of the
+                    subsequent levels, where the order of the predictor levels
+                    is as they appear in the GROUP argument. In addition to the
+                    columns of this contrast coding scheme summing to zero,
+                    this contrast coding is orthogonal (i.e. the off-diagonal
+                    elements of its autocovariance matrix are zero) and so the
+                    slope coefficients are independent. This type of contrast
+                    is ideal for predictor variables that are either ordinal,
+                    or nominal with their levels ordered such that the contrast
+                    coding reflects tests of some hypotheses of interest about
+                    the nested grouping of the predictor levels.
+
+                  o 'effect': Deviation effect coding. The intercept represents
+                    the grand mean. Each slope coefficient compares one level
+                    of a predictor (or interaction between predictors) with the
+                    grand mean. Note that a slope coefficient is omitted for
+                    the first level of the predictor(s) listed in the GROUP
+                    argument. The columns of this contrast coding scheme sum to
+                    zero. This type of contrast is ideal for nominal predictor
+                    variables when there is no obvious reference group.
+
+                  o 'sdif' or 'sdiff': Successive differences contrast coding.
+                    The intercept represents the grand mean. Each slope
+                    coefficient represents the difference between one level of
+                    a predictor (or interaction between predictors) to the
+                    previous one, where the order of the predictor levels is
+                    as they appear in the GROUP argument. The columns of this
+                    contrast coding coding scheme sum to zero. This type of
+                    contrast is ideal for ordinal predictor variables.
+
+            <> A matrix containing a custom contrast coding scheme (i.e.
+               the generalized inverse of contrast weights). Rows in
+               the contrast matrices correspond to predictor levels in the
+               order that they first appear in the GROUP column. The
+               matrix must contain the same number of columns as there
+               are the number of predictor levels minus one.
+
+          If the linear model contains more than one predictor and a
+          built-in contrast coding scheme was specified, then those
+          contrasts are applied to all predictors. To specify different
+          contrasts for different predictors in the model, CONTRASTS should
+          be a cell array with the same number of cells as there are
+          columns in GROUP. Each cell should define contrasts for the
+          respective column in GROUP by one of the methods described
+          above. If cells are left empty, then the default contrasts
+          are applied. Contrasts for cells corresponding to continuous
+          predictors are ignored.
+
+     '[...] = bootlm (Y, GROUP, ..., 'nboot', NBOOT)'
+
+       <> Specifies the number of bootstrap resamples, where NBOOT must be a
+          positive integer. If empty, the default value of NBOOT is 9999.
+
+     '[...] = bootlm (Y, GROUP, ..., 'clustid', CLUSTID)'
+
+       <> Specifies a vector or cell array of numbers or strings respectively
+          to be used as cluster labels or identifiers. Rows of the data with
+          the same CLUSTID value are treated as clusters with dependent errors.
+          If CLUSTID is a row vector or a two dimensional array or matrix, then
+          it will be transposed or reshaped to be a column vectors. If empty
+          (default), no clustered resampling is performed and all errors are
+          treated as independent. The standard errors computed are cluster-
+          robust standard errors. 
+
+     '[...] = bootlm (Y, GROUP, ..., 'blocksz', BLOCKSZ)'
+
+       <> Specifies a scalar, which sets the block size for bootstrapping when
+          the errors have serial dependence. Rows of the data within the same
+          block are treated as having dependent errors. If empty (default),
+          no clustered resampling is performed and all errors are treated
+          as independent. The standard errors computed are cluster robust.
+
+     '[...] = bootlm (Y, GROUP, ..., 'dim', DIM)'
+
+       <> DIM can be specified as one of the following:
+
+             o a cell array of strings corresponding to variable names defined
+               VARNAMES, or
+
+             o a scalar or vector specifying the dimension(s),
+
+          over which 'bootlm' calculates and returns estimated marginal means
+          instead of regression coefficients. For example, the value [1 3]
+          computes the estimated marginal mean for each combination of the
+          levels of the first and third predictors. The rows of the estimates
+          returned are sorted according to the order of the dimensions
+          specified in DIM. The default value of DIM is empty, which makes
+          'bootlm' return the statistics for the model coefficients. If DIM
+          is, or includes, a continuous predictor then 'bootlm' will return an
+          error. The following statistics are printed when specifying 'dim':
+             - name: the name(s) of the estimated marginal mean(s)
+             - mean: the estimated marginal mean(s)
+             - CI_lower: lower bound(s) of the 95% confidence interval (CI)
+             - CI_upper: upper bound(s) of the 95% confidence interval (CI)
+             - N: the number of independent sampling units used to compute CIs
+
+     '[...] = bootlm (Y, GROUP, ..., 'posthoc', POSTHOC)'
+
+       <> When DIM is specified, POSTHOC comparisons along DIM can be one of
+          the following:
+
+             o empty or 'none' (default) : No posthoc comparisons are performed.
+               The statistics returned are for the estimated marginal means.
+
+             o 'pairwise' : Pairwise comparisons are performed.
+
+             o 'trt_vs_ctrl' : Treatment vs. Control comparisons are performed.
+               Control corresponds to the level(s) of the predictor(s) listed
+               within the first row of STATS when POSTHOC is set to 'none'.
+
+             o {'trt_vs_ctrl', k} : Treatment vs. Control comparisons are
+               performed. The control is group number k as returned when
+               POSTHOC is set to 'none'.
+
+             o a two-column numeric matrix defining each pair of comparisons,
+               where each number in the matrix corresponds to the row number
+               of the estimated-marginal means as listed for the same value(s)
+               of DIM and when POSTHOC is set to 'none'. The comparison
+               corresponds to the row-wise differences: column 1 - column 2.
+               See demo 6 for an example.
+
+          All of the posthoc comparisons use the step-down max |T| procedure
+          to control the type I error rate, but the confidence intervals are
+          not adjusted for multiple comparisons [3]. If the 'standardize' input
+          argument set to 'on', the estimates, confidence intervals and
+          bootstrap statistics for the comparisons are converted to estimates
+          of Cohen's d standardized effect sizes. Cohen's d here is calculated
+          from the residual standard deviation, which is estimated from the
+          standard errors and the sample sizes. As such, the effect sizes
+          calculated exclude variability attributed to other predictors in
+          the model.
+
+     '[...] = bootlm (Y, GROUP, ..., 'seed', SEED)' initialises the Mersenne
+     Twister random number generator using an integer SEED value so that
+     'bootlm' results are reproducible.
+
+     'bootlm' can return up to four output arguments:
+
+     'STATS = bootlm (...)' returns a structure with the following fields:
+       - 'method': The bootstrap method
+       - 'name': The names of each of the estimates
+       - 'estimate': The value of the estimates
+       - 'CI_lower': The lower bound(s) of the confidence/credible interval(s)
+       - 'CI_upper': The upper bound(s) of the confidence/credible interval(s)
+       - 'pval': The p-value(s) for the hypothesis that the estimate(s) == 0
+       - 'fpr': The minimum false positive risk (FPR) for each p-value [4].
+       - 'N': The number of independent sampling units used to compute CIs
+       - 'prior': The prior used for Bayesian bootstrap. This will return a
+                  scalar for regression coefficients, or a P x 1 or P x 2
+                  matrix for estimated marginal means or posthoc tests
+                  respectively, where P is the number of parameter estimates.
+       - 'levels': A cell array with the levels of each predictor.
+       - 'contrasts': A cell array of contrasts associated with each predictor.
+
+          Note that the p-values returned are truncated at the resolution
+          limit determined by the number of bootstrap replicates, specifically 
+          1 / (NBOOT + 1). Values for the minumum false positive risk are
+          computed using the Sellke-Berger approach. The following fields are
+          only returned when 'estimate' corresponds to model regression
+          coefficients: 'levels' and 'contrasts'.
+
+     '[STATS, BOOTSTAT] = bootlm (...)' also returns a P x NBOOT matrix of
+     bootstrap statistics for the estimated parameters, where P is the number
+     of parameters estimated in the model. Depending on the DIM and POSTHOC
+     input arguments set by the user, the estimated parameters whose bootstrap
+     statistics are returned will be either regression coefficients, the
+     estimated marginal means, or the mean differences between groups of a
+     categorical predictor for posthoc testing.
+
+     '[STATS, BOOTSTAT, AOVSTAT] = bootlm (...)' also computes bootstrapped
+     ANOVA statistics* and returns them in a structure with the following
+     fields: 
+       - 'MODEL': The formula of the linear model(s) in Wilkinson's notation
+       - 'SS': Sum-of-squares
+       - 'DF': Degrees of freedom
+       - 'MS': Mean-squares
+       - 'F': F-Statistic
+       - 'PVAL': p-values
+       - 'FPR': The minimum false positive risk for each p-value [3]
+       - 'SSE': Sum-of-Squared Error
+       - 'DFE': Degrees of Freedom for Error
+       - 'MSE': Mean Squared Error
+
+       The ANOVA implemented uses sequential (type I) sums-of-squares and so
+       the results and their interpretation depend on the order** of predictors
+       in the GROUP variable (when the design is not balanced). Thus, the null
+       model used for comparison for each model is the model listed directly
+       above it in AOVSTAT; for the first model, the null model is the
+       intercept-only model. The procedure here for bootstrapping ANOVA is
+       performed with the null hypothesis imposed and requires that the method
+       used is 'wild' bootstrap AND that no other statistics are requested 
+       (i.e. estimated marginal means or posthoc tests).
+
+       The bootlm function treats all model predictors as fixed effects during
+       ANOVA tests. Note also that the bootlm function can be used to compute
+       p-values for ANOVA with accounting for dependence structures such as
+       block or nested designs by wild cluster bootstrap resampling (see the 
+!      'clustid' or 'blocksz' option).
+
+       ** See demo 7 for an example of how to obtain results for ANOVA using
+          type II sums-of-squares, which test hypotheses that give results
+          invariant to the order of the predictors, regardless of whether
+          sample sizes are equal or not.
+
+     '[STATS, BOOTSTAT, AOVSTAT, PRED_ERR] = bootlm (...)' also computes
+     refined bootstrap estimates of prediction error* and returns statistics
+     derived from it in a structure containing the following fields:
+       - 'MODEL': The formula of the linear model(s) in Wilkinson's notation
+       - 'PE': Bootstrap estimate of prediction error [5]
+       - 'PRESS': Bootstrap estimate of predicted residual error sum of squares
+       - 'RSQ_pred': Bootstrap estimate of predicted R-squared
+       - 'EIC': Extended (Efron) Information Criterion [6]
+       - 'RL': Relative likelihood (compared to the intercept-only model)
+       - 'Wt': EIC expressed as weights
+
+       The linear models evaluated are the same as for AOVSTAT, except that the 
+       output also includes the statistics for the intercept-only model. Note
+       that PRED_ERR statistics are only returned when the method used is
+       'wild' bootstrap AND when no other statistics are requested (i.e.
+       estimated marginal means or posthoc tests). Computations of the
+       statistics in PRED_ERR are compatible with the 'clustid' and 'blocksz'
+        options. Note that it is possible (and not unusual) to get a negative
+       value for RSQ-pred, particularly for the intercept-only model.
+
+     * If the parallel computing toolbox (Matlab) or package (Octave) is
+       installed and loaded, then these computations will be automatically
+       accelerated by parallel processing on platforms with multiple processors.
+
+     '[STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (...)' also returns
+     a structure containing the design matrix of the predictors (X), the raw
+     regression coefficients (b), the outcome (Y), the column vector (ID) of
+     arbitrary numeric identifiers for the independent sampling units, the 
+     cell array of contrast/coding matrices (C) used to generate X, and the
+     hypothesis matrix (L) for computing any specified estimated marginal means
+     or posthoc comparisons.
+
+     'MAT = bootlm (Y, GROUP, ..., 'nboot', 0)'
+
+       <> Performs the least-squares fit only and returns MAT without any 
+          bootstrap resampling. All other input options are accepted (even if
+          some are ignored), but only one output argument can be requested.
+          The 'display' option, if true creates the figure or diagnostic plots
+          but does not print any results to stdout.
+
+  Bibliography:
+  [1] Penn, A.C. statistics-resampling manual: `bootwild` function reference.
+        https://gnu-octave.github.io/statistics-resampling/function/bootwild.html 
+        and references therein. Last accessed 02 Sept 2024.
+  [2] Penn, A.C. statistics-resampling manual: `bootbayes` function reference.
+        https://gnu-octave.github.io/statistics-resampling/function/bootbayes.html
+        and references therein. Last accessed 02 Sept 2024.
+  [3] Westfall, P. H., & Young, S. S. (1993). Resampling-Based Multiple 
+        Testing: Examples and Methods for p-Value Adjustment. Wiley.
+  [4] David Colquhoun (2019) The False Positive Risk: A Proposal Concerning
+        What to Do About p-Values, The American Statistician, 73:sup1, 192-201
+  [5] Efron and Tibshirani (1993) An Introduction to the Bootstrap. 
+        New York, NY: Chapman & Hall. pg 247-252
+  [6] Konishi & Kitagawa (2008), "Bootstrap Information Criterion" In: 
+        Information Criteria and Statistical Modeling. Springer Series in
+        Statistics. Springer, NY.
+
+  bootlm (version 2024.07.08)
+  Author: Andrew Charles Penn
+  https://www.researchgate.net/profile/Andrew_Penn/
+
+  Copyright 2019 Andrew Charles Penn
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see http://www.gnu.org/licenses/
 </pre>
 
 <h3><a name="1">Demonstration 1</a></h3>

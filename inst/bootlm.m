@@ -24,6 +24,7 @@
 % -- Function File: [STATS, BOOTSTAT, AOVSTAT] = bootlm (...)
 % -- Function File: [STATS, BOOTSTAT, AOVSTAT, PRED_ERR] = bootlm (...)
 % -- Function File: [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (...)
+% -- Function File: 'MAT = bootlm (Y, GROUP, ..., 'nboot', 0)'
 %
 %        Fits a linear model with categorical and/or continuous predictors (i.e.
 %     independent variables) on a continuous outcome (i.e. dependent variable)

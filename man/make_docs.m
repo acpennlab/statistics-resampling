@@ -6,6 +6,10 @@
 %  - statistics-resampling
 % (The documentation was generated with GNU Octave installed with MacPorts on MacOS)
 
+% Set environmental variables
+setenv ('PATH', cat (2, '/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:', ...
+                '/usr/local/bin:/opt/local/sbin:/opt/local/bin:/opt/X11/bin'))
+
 % Remove existing pages and files
 system ('rm -Rf ../docs/*');
 system ('rm -Rf ../tmp');

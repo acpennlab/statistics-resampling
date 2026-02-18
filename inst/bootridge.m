@@ -91,9 +91,11 @@
 %      constant.
 %
 %      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA)' sets the central mass of equal-
-%      tailed credibility intervals (CI) to (1 - ALPHA), with probability mass
-%      ALPHA/2 in each tail. ALPHA must be a scalar value between 0 and 1. The
-%      default value of ALPHA is 0.05 for 95% intervals.
+%      tailed credibility intervals (CI) to (1 - ALPHA) with probability mass
+%      ALPHA/2 in each tail, and sets the threshold for the adjusted stability
+%      selection (SS) probabilities of the regression coefficients to (1 - ALPHA).
+%      ALPHA must be a scalar value between 0 and 1. The default value of ALPHA
+%      is 0.05 for 95% intervals.
 %
 %      'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L)' specifies a hypothesis
 %      matrix L of size n-by-c defining c linear contrasts or model-based
@@ -236,10 +238,9 @@
 %            The probabilities that the sign of the regression coefficients
 %            remained consistent across max(nboot,1999) bootstrap resamples [6].
 %            Raw probabilities are smoothed using a Jeffreys prior and, if
-%            applicable, adjusted by the design effect (Deff) via a Probit-link
-%            transformation: Phi ( Phi^-1(stability) / sqrt (Deff) ), where Phi
-%            and Phi^-1 are the cumulative standard normal distribution function
-%            and its inverse respectively.
+%            applicable, adjusted by the design effect (Deff). In the printed
+%            summary, stability exceeding (1 - ALPHA) is indicated by (+) or (-)
+%            to denote the consistent direction of the effect.
 %
 %        o RTAB
 %            Matrix summarizing residual correlations (strictly lower-
@@ -306,6 +307,12 @@
 %      for the coefficient estimation in a given bootstrap draw), 
 %      thereby maintaining a principled separation between the data used 
 %      for likelihood estimation and the data used for prior tuning.
+%
+%      STABILITY SELECTION:
+%      The directional reproducibility of the sign of the regression coefficients
+%      under resampling are quantified and reported as Stability Selection (SS).
+%      It is possible for a shrunken coefficient to be highly stable in sign
+%      despite having anecdotal Bayes Factors.
 %
 %      BAYES FACTORS:
 %      For regression coefficients and linear estimates, Bayes factors are
@@ -380,6 +387,15 @@
 %         and is in line with classical variance component approximations (e.g.,
 %         Satterthwaite/Kenward–Roger) and ridge inference recommendations
 %         [16–18].
+%
+%      4. Stability Selection: The sign-consistency probabilities (denoted
+%         stability) are adjusted via a Probit-link transformation: 
+%            Phi ( Phi^-1(stability) / sqrt (Deff) )
+%         Where Phi and Phi^-1 are the cumulative standard normal distribution
+%         function and its inverse respectively. This adjustment ensures that
+%         the reported stability reflects the effective sample size rather than
+%         the raw number of observations, preventing over-certainty in the
+%         presence of clustered data.
 %
 %      ESTIMATING THE DESIGN EFFECT:
 %      While DEFF = 1 + (g - 1) * r provides a useful analytical upper bound 
@@ -987,12 +1003,12 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     if (q > 1)
       fprintf (cat (2, '\n %.3g%% credible intervals for', ...
                        ' correlations between outcomes:\n'), ...
-                       100* (1 - alpha));
+                       100 * (1 - alpha));
       fprintf (' (Prior on Fisher''s z is flat/improper)\n')
       fprintf (cat (2, '\n Outcome J     Outcome I     Correlation', ...
                         '   CI_lower      CI_upper     \n'));
       for i = 1:q*(q-1)*0.5
-        fprintf (' %-10d    %-10d    %#-+10.4g    %#-+10.4g    %#-+10.4g\n', ...
+        fprintf (' %-10d    %-10d    %#-+9.4g     %#-+9.4g     %#-+9.4g\n', ...
                  J(i), I(i), R(i), R_CI_lower(i), R_CI_upper(i));
       end
     end
@@ -1000,30 +1016,42 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     % Coefficients and linear estimates
     if (c < 1)
       fprintf (cat (2, '\n %.3g%% credible intervals and Bayes factors', ...
-                       ' for regression coefficients:\n'), ...
-                       100* (1 - alpha));
-      fprintf (cat (2, ' (Global ridge prior contribution to posterior ', ... 
-                       'precision: %#.2f %%)\n'), prior_perc_ridge);
+                       ' for regression coefficients.\n'), ...
+                       100 * (1 - alpha));
+      fprintf (cat (2, ' Global ridge prior contribution to posterior ', ... 
+                       'precision: %#.2f %%\n'), prior_perc_ridge);
+      fprintf (cat (2, ' Stability selection (SS) >%.3g%% for the (-) or (+) ', ...
+                       'sign of the coefficient.\n'), 100 * (1 - alpha));
       for j = 1:q
         fprintf (cat (2, '\n Outcome %d:\n Coefficient   CI_lower      ', ...
-                         'CI_upper      lnBF10        Prior\n'), j);
+                         'CI_upper      lnBF10    SS  Prior\n'), j);
         for k = 1:n
-          fprintf (' %#-+10.4g    %#-+10.4g    %#-+10.4g    %#-+10.4g    %s\n', ...
+          if (stability(k, j) > (1 - alpha))
+            if (Beta(k, j) < 0)
+              ss = '(-)';
+            elseif (Beta(k, j) > 0)
+              ss = '(+)';
+            end 
+          else
+            ss = '   ';
+          end
+          fprintf (cat (2, ' %#-+9.4g     %#-+9.4g     %#-+9.4g     ', ...
+                           '%#-+9.4g %s %s\n'), ...
                   Beta(k, j), CI_lower(k, j), CI_upper(k, j), lnBF10(k, j), ...
-                  prior{k, j});
+                  ss, prior{k, j});
         end
       end
     else
       fprintf (cat (2, '\n %.3g%% credible intervals and Bayes factors', ...
-                       ' for linear estimates:\n'), ...
+                       ' for linear estimates.\n'), ...
                        100* (1 - alpha));
-      fprintf (cat (2, ' (Global ridge prior contribution to posterior ', ... 
-                       'precision: %#.2f %%)\n'), prior_perc_ridge);
+      fprintf (cat (2, ' Global ridge prior contribution to posterior ', ... 
+                       'precision: %#.2f %%\n'), prior_perc_ridge);
       for j = 1:q
         fprintf (cat (2, '\n Outcome %d:\n Estimate      CI_lower      ', ...
                          'CI_upper      lnBF10        Prior\n'), j);
         for k = 1:c
-          fprintf (' %#-+10.4g    %#-+10.4g    %#-+10.4g    %#-+10.4g    %s\n', ...
+          fprintf (' %#-+9.4g     %#-+9.4g     %#-+9.4g     %#-+9.4g     %s\n', ...
                   mu(k, j), CI_lower(k, j), CI_upper(k, j), lnBF10(k, j), ...
                   prior{k, j});
         end

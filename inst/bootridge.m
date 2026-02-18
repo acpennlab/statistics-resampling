@@ -388,14 +388,15 @@
 %         Satterthwaite/Kenward–Roger) and ridge inference recommendations
 %         [16–18].
 %
-%      4. Stability Selection: The sign-consistency probabilities (denoted
-%         stability) are adjusted via a Probit-link transformation: 
+%      4. Stability Selection: The sign-consistency probabilities (denoted as
+%         stability) under bootstrap resampling are adjusted for the design
+%         effect via a Probit-link transformation: 
 %            Phi ( Phi^-1(stability) / sqrt (Deff) )
 %         Where Phi and Phi^-1 are the cumulative standard normal distribution
 %         function and its inverse respectively. This adjustment ensures that
 %         the reported stability reflects the effective sample size rather than
 %         the raw number of observations, preventing over-certainty in the
-%         presence of clustered data.
+%         presence of clustered or dependent data.
 %
 %      ESTIMATING THE DESIGN EFFECT:
 %      While DEFF = 1 + (g - 1) * r provides a useful analytical upper bound 
@@ -1020,8 +1021,8 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
                        100 * (1 - alpha));
       fprintf (cat (2, ' Global ridge prior contribution to posterior ', ... 
                        'precision: %#.2f %%\n'), prior_perc_ridge);
-      fprintf (cat (2, ' Stability selection (SS) >%.3g%% for the (-) or (+) ', ...
-                       'sign of the coefficient.\n'), 100 * (1 - alpha));
+      fprintf (cat (2, ' Stability selection (SS): >%.3g%% for the (-) or ', ...
+                       '(+) sign of the coefficient.\n'), 100 * (1 - alpha));
       for j = 1:q
         fprintf (cat (2, '\n Outcome %d:\n Coefficient   CI_lower      ', ...
                          'CI_upper      lnBF10    SS  Prior\n'), j);

@@ -232,13 +232,22 @@
 %            (columns) in Y after internal standardization, and the predictors
 %            X after internal centering.
 %
+%        o stability
+%            The probabilities that the sign of the regression coefficients
+%            remained consistent across max(nboot,1999) bootstrap resamples [6].
+%            Raw probabilities are smoothed using a Jeffreys prior and, if
+%            applicable, adjusted by the design effect (Deff) via a Probit-link
+%            transformation: Phi ( Phi^-1(stability) / sqrt (Deff) ), where Phi
+%            and Phi^-1 are the cumulative standard normal distribution function
+%            and its inverse respectively.
+%
 %        o RTAB
 %            Matrix summarizing residual correlations (strictly lower-
 %            triangular pairs). The columns correspond to Outcome J, Outcome I, 
 %            and the coefficient and credible intervals for their correlation.
 %
 %            Credible intervals for correlations are computed on Fisher’s z
-%            [15] using a t‑based sampling distribution with effective degrees 
+%            [7] using a t‑based sampling distribution with effective degrees 
 %            of freedom df_t, and then back‑transformed. See CONDITIONAL VS 
 %            MARGINAL PRIORS and DETAIL below. Diagonal entries are undefined
 %            and not included.
@@ -264,16 +273,16 @@
 %      effects are shrunken toward zero, while stable effects survive the 
 %      penalty. This "Partial Pooling" ensures that Bayes factors are 
 %      appropriately conservative without the catastrophic loss of power 
-%      associated with classical post-hoc adjustments [6, 7].
+%      associated with classical post-hoc adjustments [8, 9].
 %
 %      PREDICTIVE OPTIMIZATION:
 %      The ridge tuning constant (hyperparameter) is selected empirically by
 %      minimizing the .632 bootstrap estimate of prediction error [1, 2]. This
 %      aligns lambda with minimum estimated out‑of‑sample mean squared
 %      prediction error, ensuring the model is optimized for generalizability
-%      rather than mere in-sample fit [8–10]. This lambda in turn determines the
+%      rather than mere in-sample fit [10–12]. This lambda in turn determines the
 %      scale of the Normal ridge prior used to shrink slope coefficients toward
-%      zero [11].
+%      zero [13].
 %
 %      CONDITIONAL VS MARGINAL PRIORS:
 %      The ridge penalty (lambda) corresponds to a Normal prior on the
@@ -303,11 +312,11 @@
 %      computed using the Savage–Dickey density ratio evaluated on the
 %      marginal inference scale. Prior and posterior densities are Student’s
 %      t distributions with shared degrees of freedom (df_t), reflecting
-%      uncertainity in the residual variance under an empirical‑Bayes
+%      uncertainty in the residual variance under an empirical‑Bayes
 %      approximation [3–5].
 %
 %      For residual correlations between outcomes, credible intervals are 
-%      computed on Fisher’s z [15] with effective degrees of freedom df_t and 
+%      computed on Fisher’s z [7] with effective degrees of freedom df_t and 
 %      then back‑transformed to r.
 %
 %      SUMMARY OF PRIORS:
@@ -338,7 +347,7 @@
 %      UNCERTAINTY AND CLUSTERING:
 %      The design effect specified by DEFF is integrated throughout the model
 %      consistent with its definition:
-%             DEFF(parameter) =  Var_true(parameter) / Var_iid(parameter)
+%              DEFF(parameter) =  Var_true(parameter) / Var_iid(parameter)
 %      This guards against dependence between observations leading to anti-
 %      conservative inference. This adjustment occurs at three levels:
 %
@@ -355,7 +364,7 @@
 %         the ridge-adjusted degrees of freedom (df_lambda = m - trace(H_lambda))
 %         and is then inflated by a factor of DEFF. This yields an "effective"
 %         noise scale on the derived parameter statistics that accounts for
-%         within-cluster correlation [16, 17] according to:
+%         within-cluster correlation [14, 15] according to:
 %             Var_true(beta_hat) = DEFF * Var_iid(beta_hat)
 %
 %      3. Inferential Shape: A marginal Student’s t layer is used for all
@@ -370,7 +379,7 @@
 %         prior (alpha = df_t / 2, beta = Sigma_Y_hat) on the residual variance
 %         and is in line with classical variance component approximations (e.g.,
 %         Satterthwaite/Kenward–Roger) and ridge inference recommendations
-%         [12–14].
+%         [16–18].
 %
 %      ESTIMATING THE DESIGN EFFECT:
 %      While DEFF = 1 + (g - 1) * r provides a useful analytical upper bound 
@@ -383,7 +392,7 @@
 %      `bootbayes`) relative to an i.i.d. assumption. Supplying this 
 %      "Effective DEFF" allows `bootridge` to provide analytical Bayesian 
 %      inference that approximates the results of a full hierarchical or 
-%      resampled model [16, 17].
+%      resampled model [14, 15].
 %
 %      DIAGNOSTIC ASSESSMENT:
 %      Users should utilize `bootlm` for formal diagnostic plots (Normal 
@@ -436,43 +445,45 @@
 %      Bayesian hypothesis testing for psychologists: A tutorial on the 
 %      Savage–Dickey method. Cognitive Psychology, 60(3):158–189.
 %      https://doi.org/10.1016/j.cogpsych.2009.12.001
-%  [6] Gelman, A., Hill, J., & Yajima, M. (2012) Why we usually don't worry 
+%  [6] Meinshausen, N. & Buhlmann, P. (2010) Stability selection. J. R. Statist.
+%      Soc. B. 72(4): 417-473. https://doi.org/10.1111/j.1467-9868.2010.00740.x
+%  [7] Fisher, R. A. (1921) On the "Probable Error" of a Coefficient of
+%      Correlation Deduced from a Small Sample. Metron, 1:3–32. (Fisher z)
+%  [8] Gelman, A., Hill, J., & Yajima, M. (2012) Why we usually don't worry 
 %      about multiple comparisons. J. Res. on Educ. Effectiveness, 5:189–211.
 %      https://doi.org/10.1080/19345747.2011.618213
-%  [7] Efron, B. (2010) Large-Scale Inference: Empirical Bayes Methods for 
+%  [9] Efron, B. (2010) Large-Scale Inference: Empirical Bayes Methods for 
 %      Estimation, Testing, and Prediction. Cambridge University Press.
 %      https://doi.org/10.1017/CBO9780511761362
-%  [8] Hastie, T., Tibshirani, R., & Friedman, J. (2009) The Elements of
+% [10] Hastie, T., Tibshirani, R., & Friedman, J. (2009) The Elements of
 %      Statistical Learning (2nd ed.). Springer.
 %      https://doi.org/10.1007/978-0-387-84858-7
-%  [9] Ye, J. (1998) On Measuring and Correcting the Effects of Data Mining and
+% [11] Ye, J. (1998) On Measuring and Correcting the Effects of Data Mining and
 %      Model Selection. JASA, 93(441):120–131. (Generalized df)
 %      https://doi.org/10.1080/01621459.1998.10474094
-% [10] Akaike, H. (1973) Information Theory and an Extension of the Maximum
+% [12] Akaike, H. (1973) Information Theory and an Extension of the Maximum
 %      Likelihood Principle. In: 2nd Int. Symp. on Information Theory. (AIC/KL)
 %      https://doi.org/10.1007/978-1-4612-0919-5_38
-% [11] Hoerl, A. E. & Kennard, R. W. (1970) Ridge Regression: Biased Estimation
+% [13] Hoerl, A. E. & Kennard, R. W. (1970) Ridge Regression: Biased Estimation
 %      for Nonorthogonal Problems. Technometrics, 12(1):55–67.
 %      https://doi.org/10.1080/00401706.1970.10488634
-% [12] Satterthwaite, F. E. (1946) An Approximate Distribution of Estimates of
-%      Variance Components. Biometrics Bulletin, 2(6):110–114.
-%      https://doi.org/10.2307/3002019
-% [13] Kenward, M. G. & Roger, J. H. (1997) Small Sample Inference for Fixed 
-%      Effects from Restricted Maximum Likelihood. Biometrics, 53(3):983–997.
-%      https://doi.org/10.2307/2533558
-% [14] Vinod, H. D. (1987) Confidence Intervals for Ridge Regression Parameters.
-%      In Time Series and Econometric Modelling, pp. 279–300.
-%      https://doi.org/10.1007/978-94-009-4790-0_19
-% [15] Fisher, R. A. (1921) On the "Probable Error" of a Coefficient of
-%      Correlation Deduced from a Small Sample. Metron, 1:3–32. (Fisher z)
-% [16] Neuhaus, J. M., & Segal, M. R. (1993). Design effects for binary 
+% [14] Neuhaus, J. M., & Segal, M. R. (1993). Design effects for binary 
 %      regression models fitted to dependent data. Statistics in Medicine, 
 %      12(13):1259–1268. https://doi.org/10.1002/sim.4780121309
-% [17] Cameron, A. C., & Miller, D. L. (2015) A Practitioner's Guide to 
+% [15] Cameron, A. C., & Miller, D. L. (2015) A Practitioner's Guide to 
 %      Cluster-Robust Inference. J. Hum. Resour., 50(2):317–372.
 %      https://doi.org/10.3368/jhr.50.2.317
+% [16] Satterthwaite, F. E. (1946) An Approximate Distribution of Estimates of
+%      Variance Components. Biometrics Bulletin, 2(6):110–114.
+%      https://doi.org/10.2307/3002019
+% [17] Kenward, M. G. & Roger, J. H. (1997) Small Sample Inference for Fixed 
+%      Effects from Restricted Maximum Likelihood. Biometrics, 53(3):983–997.
+%      https://doi.org/10.2307/2533558
+% [18] Vinod, H. D. (1987) Confidence Intervals for Ridge Regression Parameters.
+%      In Time Series and Econometric Modelling, pp. 279–300.
+%      https://doi.org/10.1007/978-94-009-4790-0_19
 %
-% bootridge (version 2026.01.31)
+% bootridge (version 2026.02.18)
 % Author: Andrew Charles Penn
 
 
@@ -681,7 +692,9 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   end
 
   % Get the prediction error at the optimal lambda
-  [pred_err, stability] = booterr632 (YS, XC, lambda, P_vec, nboot, seed);
+  % Use a minimum of 1999 bootstrap resamples for stability selection
+  [pred_err, stability] = booterr632 (YS, XC, lambda, P_vec, ...
+                                      max (nboot, 1999), seed);
 
   % Heuristic correction to lambda (prior precision) for the design effect.
   % Empirical-Bayes ridge learns lambda as an inverted estimator-scale SNR:
@@ -716,6 +729,12 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     df_lambda = m  - trace (U \ (U' \ (X' * X))); % Equivalent to m - trace (H)
   end
   df_lambda = max (df_lambda, 1);
+
+  % Correct stability selection probabilities for the design effect
+  stdnormcdf = @(x) 0.5 * (1 + erf (x / sqrt (2)));
+  stdnorminv = @(p) sqrt (2) * erfinv (2 * p - 1);
+  z_stability = stdnorminv (stability);
+  stability = stdnormcdf (z_stability / sqrt (deff));
 
   % Calculate the global, rotation‑invariant prior contribution as a percentage.
   % This is a ridge-based % prior contribution and it is relevant to the prior 
@@ -811,7 +830,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     V1 = diag (invA) * diag (Sigma_Y_hat)';
 
     % Marginal posterior density at 0 for each coefficient/outcome
-    % Note that the third input argumemt is variance, not standard deviation.
+    % Note that the third input argument is variance, not standard deviation.
     pH1 = distpdf (0, Beta, V1, df_t);
 
   else
@@ -847,7 +866,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     V1 = diag (invA_L) * diag (Sigma_Y_hat)';              % c x q
 
     % Marginal posterior density at 0 for each linear estimate/outcome
-    % Note that the third input argumemt is variance, not standard deviation.
+    % Note that the third input argument is variance, not standard deviation.
     pH1 = distpdf (0, mu, V1, df_t);
 
   end
@@ -914,6 +933,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   S.tol = tol;
   S.iter = iter;
   S.pred_err = pred_err;
+  S.stability = stability;
   if (q > 1); S.RTAB = RTAB; end
   if (nargout > 1)
     YHAT = X * Beta;
@@ -1077,7 +1097,7 @@ function [PRED_ERR, STABILITY] = booterr632 (Y, X, lambda, P_vec, nboot, seed)
     else
       Alpha_obs = U \ (U' \ Y);         % Fast solve
     end
-    Beta_obs  = P_inv_vec .* (X' * Alpha_obs);
+    Beta_obs = bsxfun (@times, P_inv_vec, (X' * Alpha_obs));
   else
     A = X' * X + LP;                    % Regularized normal equation matrix
     [U, flag] = chol (A);               % Upper Cholesky factor of symmetric A
@@ -1107,7 +1127,7 @@ function [PRED_ERR, STABILITY] = booterr632 (Y, X, lambda, P_vec, nboot, seed)
     o = true (m, 1);
     o(i) = false;
 
-    % Algorithm for calculation of Beta is dependent on the data dimenions.
+    % Algorithm for calculation of Beta is dependent on the data dimensions.
     % The ridge parameter, lambda, helps to prevent the system matrix from
     % becoming singular, so we can use very fast Cholesky decomposition in dual
     % or primal space depending on the dimensions of X.
@@ -1133,10 +1153,10 @@ function [PRED_ERR, STABILITY] = booterr632 (Y, X, lambda, P_vec, nboot, seed)
           Alpha = U \ (U' \ YCi);       % Fast solve by Cholesky decomposition
         end
         XCo = bsxfun (@minus, X(o, :), mx);
-        XWo = bsxfun(@times, XCo, sqrt (P_inv_vec)');
-        PRED_OOB = (XWo * XWi') * Alpha + my;
+        XWo = bsxfun (@times, XCo, sqrt (P_inv_vec)');
+        PRED_OOB = bsxfun (@plus, (XWo * XWi') * Alpha, my);
         if (nargout > 1)
-          Beta = P_inv_vec .* (XCi' * Alpha);
+          Beta = bsxfun (@times, P_inv_vec, (XCi' * Alpha));
           STABILITY  = STABILITY + (sign (Beta) == Sign_obs);
         end
     else
@@ -1180,7 +1200,8 @@ function [PRED_ERR, STABILITY] = booterr632 (Y, X, lambda, P_vec, nboot, seed)
 
   % Calculate stability selection
   if (nargout > 1)
-    STABILITY = STABILITY / nboot;
+    % Convert counts to proportions, with Jeffrey's smoothing.
+    STABILITY = (STABILITY + 0.5) / (nboot + 1.0);
     STABILITY(1, :) = NaN;  % Set stability selection to NaN for the intercepts
   end
 

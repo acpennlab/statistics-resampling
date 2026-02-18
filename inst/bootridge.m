@@ -681,7 +681,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   end
 
   % Get the prediction error at the optimal lambda
-  pred_err = obj_func (lambda);
+  [pred_err, stability] = booterr632 (YS, XC, lambda, P_vec, nboot, seed);
 
   % Heuristic correction to lambda (prior precision) for the design effect.
   % Empirical-Bayes ridge learns lambda as an inverted estimator-scale SNR:
@@ -1020,7 +1020,7 @@ end
 
 %% FUNCTION FOR .632 BOOTSTRAP ESTIMATOR OF PREDICTION ERROR
 
-function PRED_ERR = booterr632 (Y, X, lambda, P_vec, nboot, seed)
+function [PRED_ERR, STABILITY] = booterr632 (Y, X, lambda, P_vec, nboot, seed)
 
   % This function computes Efron & Tibshirani’s .632 bootstrap prediction error
   % for a multivariate linear ridge/Tikhonov model. Loss is the per-observation
@@ -1035,7 +1035,7 @@ function PRED_ERR = booterr632 (Y, X, lambda, P_vec, nboot, seed)
 
   % Generate balanced bootstrap indices
   BOOTSAM = boot (m, nboot, true, seed);
-  
+
   % --- HYBRID STRATEGY SELECTION ---
   % If n >  m, the Primal matrix (n x n) is bigger than the Dual matrix (m x m)
   % If m >= n, the Primal matrix (n x n) is the same or smaller than the Dual.
@@ -1050,9 +1050,6 @@ function PRED_ERR = booterr632 (Y, X, lambda, P_vec, nboot, seed)
       % error objective anyway.
       P_vec(1) = Inf;  % Intercept gets "infinite" prior precision (unpenalized)
       P_inv_vec = 1 ./ P_vec; % Result: P_inv_vec(1) is exactly 0.0
-      % Pre-compute the Generalized Kernel: K = X * inv(P) * X'
-      XW = bsxfun (@times, X, sqrt (P_inv_vec)');
-      K  = XW * XW';
       % Set the tolerance for ill-conditioned system matrix. 
       % The noise floor for each element in KCi (m x m) is goverened by n.
       tol = sqrt (n / eps_X);
@@ -1070,6 +1067,8 @@ function PRED_ERR = booterr632 (Y, X, lambda, P_vec, nboot, seed)
   % provided as input must already be standardized, and X provided must already
   % be centered.
   if (use_dual)
+    XW = bsxfun (@times, X, sqrt (P_inv_vec)');
+    K  = XW * XW';
     Kr = K; Kr(1:m+1:end) = Kr(1:m+1:end) + lambda;  % Regularized kernel
     [U, flag] = chol (Kr);              % Upper Cholesky factor of symmetric Kr
     if (~ flag); flag = (max (diag (U)) / min (diag (U)) > tol); end;
@@ -1093,8 +1092,12 @@ function PRED_ERR = booterr632 (Y, X, lambda, P_vec, nboot, seed)
   A_ERR = sum (RESI(:).^2) / m;
 
   % --- BOOTSTRAP LOOP ---
-  SSE_OOB = 0; 
-  N_OOB   = 0;
+  SSE_OOB  = 0; 
+  N_OOB    = 0;
+  if (nargout > 1)
+    Sign_obs = sign (Beta_obs);
+    STABILITY = zeros (n, q);
+  end
   for b = 1:nboot
  
     % Get resampled indices for resample b
@@ -1111,16 +1114,17 @@ function PRED_ERR = booterr632 (Y, X, lambda, P_vec, nboot, seed)
     if (use_dual)
         % DUAL (WOODBURY) SOLVE (Fast for n > m)
         % Solve the m x m system without the intercept
-        Ki = K(i, i);                   % Bootstrap sample of K; Ki is symmetric
-        mk = sum (Ki, 2) / m;           % mk = row means = column means (vector)
-        gm = sum (mk) / m;              % gm = grand mean of Ki (scalar)
-        KCi = bsxfun (@minus, Ki, mk);  % Subtracts mk from every row
-        KCi = bsxfun (@minus, KCi, mk');% Subtracts mk' from every column
-        KCi = KCi + gm;                 % KCi is Ki but centered
-        Yi = Y(i, :);                   % Bootstrap sample of Y
-        my = sum (Yi, 1) / m;           % my is mean of Yi
-        YCi = bsxfun (@minus, Yi, my);  % YCi is Yi but centered
-        KCi(1:m+1:end) = KCi(1:m+1:end) + lambda;   % Eq. to + lamda * eye (m)
+        % Build the "Local" Kernel (KCi) from centered data
+        % This ensures rank is exactly the same as the Primal XCi' * XCi
+        Xi = X(i, :);
+        Yi = Y(i, :);
+        mx = sum (Xi, 1) / m;
+        my = sum (Yi, 1) / m;
+        XCi = bsxfun (@minus, Xi, mx);
+        YCi = bsxfun (@minus, Yi, my);
+        XWi = bsxfun (@times, XCi, sqrt(P_inv_vec)'); 
+        KCi = XWi * XWi'; 
+        KCi(1:m+1:end) = KCi(1:m+1:end) + lambda;
         [U, flag] = chol (KCi);         % Upper Cholesky factor of symmetric KCi
         if (~ flag); flag = (max (diag (U)) / min (diag (U)) > tol); end;
         if (flag)
@@ -1128,13 +1132,13 @@ function PRED_ERR = booterr632 (Y, X, lambda, P_vec, nboot, seed)
         else
           Alpha = U \ (U' \ YCi);       % Fast solve by Cholesky decomposition
         end
-        Ko = K(o, i);                   % OOB Prediction
-        mo = sum (Ko, 2) / sum (o);     % mo = row means of Ko
-        KCo = bsxfun (@minus, Ko, mo);  % Subtracts mo from every row
-        KCo = bsxfun (@minus, KCo, mk');% Subtracts mk' from every column
-        KCo = KCo + gm;                 % KCo is Ko but centered
-        % Predict the values of the OOB observations from the kernel
-        PRED_OOB = bsxfun (@plus, KCo * Alpha, my); % Add back local intercept
+        XCo = bsxfun (@minus, X(o, :), mx);
+        XWo = bsxfun(@times, XCo, sqrt (P_inv_vec)');
+        PRED_OOB = (XWo * XWi') * Alpha + my;
+        if (nargout > 1)
+          Beta = P_inv_vec .* (XCi' * Alpha);
+          STABILITY  = STABILITY + (sign (Beta) == Sign_obs);
+        end
     else
         % PRIMAL (STANDARD) SOLVE (Fast for m >= n)
         % Primal solve: (n x n)
@@ -1149,6 +1153,9 @@ function PRED_ERR = booterr632 (Y, X, lambda, P_vec, nboot, seed)
         % Predict the values of the OOB observations from the coefficients for
         % for each of the q outcomes
         PRED_OOB = X(o, :) * Beta;
+        if (nargout > 1)
+          STABILITY  = STABILITY + (sign (Beta) == Sign_obs);
+        end
     end
 
     % Calculate the residuals of the OOB predictions for each of the outcomes
@@ -1170,6 +1177,12 @@ function PRED_ERR = booterr632 (Y, X, lambda, P_vec, nboot, seed)
 
   % The bootstrap .632 estimator of prediction error
   PRED_ERR = A_ERR + OPTIM;
+
+  % Calculate stability selection
+  if (nargout > 1)
+    STABILITY = STABILITY / nboot;
+    STABILITY(1, :) = NaN;  % Set stability selection to NaN for the intercepts
+  end
 
 end
 
@@ -1694,8 +1707,8 @@ end
 %! % 2. Generate Design Matrix X (The Voxels)
 %! %    Spatial correlation between voxels (columns) and time points (rows)
 %! X_raw = randn (N, p-1);
-%! %X = [ones(N, 1), filter([0.5 1 0.5], 1, X_raw, [], 2)];
-%! %X(:,2:end) = filter ([0.1, 0.4, 0.9, 1, 0.6, 0.2], 1, X(:,2:end), [], 1);
+%! X = [ones(N, 1), filter([0.5 1 0.5], 1, X_raw, [], 2)];
+%! X(:,2:end) = filter ([0.1, 0.4, 0.9, 1, 0.6, 0.2], 1, X(:,2:end), [], 1);
 %!
 %! % 3. Define the "Neural Code" (True Weights)
 %! true_beta_sparse = zeros (p, q);                       % Initialise

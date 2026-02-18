@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
   <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-  <meta name="date" content="2026-02-17"/>
+  <meta name="date" content="2026-02-18"/>
   <meta name="generator" content="generate_html 0.3.3" />
   <meta name="author" content="Andrew Penn" />
   <meta name="description" content="A package for statistical analysis using resampling methods." />
@@ -254,13 +254,22 @@
             (columns) in Y after internal standardization, and the predictors
             X after internal centering.
 
+        o stability
+            The probabilities that the sign of the regression coefficients
+            remained consistent across max(nboot,1999) bootstrap resamples [6].
+            Raw probabilities are smoothed using a Jeffreys prior and, if
+            applicable, adjusted by the design effect (Deff) via a Probit-link
+            transformation: Phi ( Phi^-1(stability) / sqrt (Deff) ), where Phi
+            and Phi^-1 are the cumulative standard normal distribution function
+            and its inverse respectively.
+
         o RTAB
             Matrix summarizing residual correlations (strictly lower-
             triangular pairs). The columns correspond to Outcome J, Outcome I, 
             and the coefficient and credible intervals for their correlation.
 
             Credible intervals for correlations are computed on Fisher’s z
-            [15] using a t‑based sampling distribution with effective degrees 
+            [7] using a t‑based sampling distribution with effective degrees 
             of freedom df_t, and then back‑transformed. See CONDITIONAL VS 
             MARGINAL PRIORS and DETAIL below. Diagonal entries are undefined
             and not included.
@@ -286,16 +295,16 @@
       effects are shrunken toward zero, while stable effects survive the 
       penalty. This "Partial Pooling" ensures that Bayes factors are 
       appropriately conservative without the catastrophic loss of power 
-      associated with classical post-hoc adjustments [6, 7].
+      associated with classical post-hoc adjustments [8, 9].
 
       PREDICTIVE OPTIMIZATION:
       The ridge tuning constant (hyperparameter) is selected empirically by
       minimizing the .632 bootstrap estimate of prediction error [1, 2]. This
       aligns lambda with minimum estimated out‑of‑sample mean squared
       prediction error, ensuring the model is optimized for generalizability
-      rather than mere in-sample fit [8–10]. This lambda in turn determines the
+      rather than mere in-sample fit [10–12]. This lambda in turn determines the
       scale of the Normal ridge prior used to shrink slope coefficients toward
-      zero [11].
+      zero [13].
 
       CONDITIONAL VS MARGINAL PRIORS:
       The ridge penalty (lambda) corresponds to a Normal prior on the
@@ -325,11 +334,11 @@
       computed using the Savage–Dickey density ratio evaluated on the
       marginal inference scale. Prior and posterior densities are Student’s
       t distributions with shared degrees of freedom (df_t), reflecting
-      uncertainity in the residual variance under an empirical‑Bayes
+      uncertainty in the residual variance under an empirical‑Bayes
       approximation [3–5].
 
       For residual correlations between outcomes, credible intervals are 
-      computed on Fisher’s z [15] with effective degrees of freedom df_t and 
+      computed on Fisher’s z [7] with effective degrees of freedom df_t and 
       then back‑transformed to r.
 
       SUMMARY OF PRIORS:
@@ -360,7 +369,7 @@
       UNCERTAINTY AND CLUSTERING:
       The design effect specified by DEFF is integrated throughout the model
       consistent with its definition:
-             DEFF(parameter) =  Var_true(parameter) / Var_iid(parameter)
+              DEFF(parameter) =  Var_true(parameter) / Var_iid(parameter)
       This guards against dependence between observations leading to anti-
       conservative inference. This adjustment occurs at three levels:
 
@@ -377,7 +386,7 @@
          the ridge-adjusted degrees of freedom (df_lambda = m - trace(H_lambda))
          and is then inflated by a factor of DEFF. This yields an "effective"
          noise scale on the derived parameter statistics that accounts for
-         within-cluster correlation [16, 17] according to:
+         within-cluster correlation [14, 15] according to:
              Var_true(beta_hat) = DEFF * Var_iid(beta_hat)
 
       3. Inferential Shape: A marginal Student’s t layer is used for all
@@ -392,7 +401,7 @@
          prior (alpha = df_t / 2, beta = Sigma_Y_hat) on the residual variance
          and is in line with classical variance component approximations (e.g.,
          Satterthwaite/Kenward–Roger) and ridge inference recommendations
-         [12–14].
+         [16–18].
 
       ESTIMATING THE DESIGN EFFECT:
       While DEFF = 1 + (g - 1) * r provides a useful analytical upper bound 
@@ -405,7 +414,7 @@
       `bootbayes`) relative to an i.i.d. assumption. Supplying this 
       "Effective DEFF" allows `bootridge` to provide analytical Bayesian 
       inference that approximates the results of a full hierarchical or 
-      resampled model [16, 17].
+      resampled model [14, 15].
 
       DIAGNOSTIC ASSESSMENT:
       Users should utilize `bootlm` for formal diagnostic plots (Normal 
@@ -458,43 +467,45 @@
       Bayesian hypothesis testing for psychologists: A tutorial on the 
       Savage–Dickey method. Cognitive Psychology, 60(3):158–189.
       https://doi.org/10.1016/j.cogpsych.2009.12.001
-  [6] Gelman, A., Hill, J., & Yajima, M. (2012) Why we usually don't worry 
+  [6] Meinshausen, N. & Buhlmann, P. (2010) Stability selection. J. R. Statist.
+      Soc. B. 72(4): 417-473. https://doi.org/10.1111/j.1467-9868.2010.00740.x
+  [7] Fisher, R. A. (1921) On the "Probable Error" of a Coefficient of
+      Correlation Deduced from a Small Sample. Metron, 1:3–32. (Fisher z)
+  [8] Gelman, A., Hill, J., & Yajima, M. (2012) Why we usually don't worry 
       about multiple comparisons. J. Res. on Educ. Effectiveness, 5:189–211.
       https://doi.org/10.1080/19345747.2011.618213
-  [7] Efron, B. (2010) Large-Scale Inference: Empirical Bayes Methods for 
+  [9] Efron, B. (2010) Large-Scale Inference: Empirical Bayes Methods for 
       Estimation, Testing, and Prediction. Cambridge University Press.
       https://doi.org/10.1017/CBO9780511761362
-  [8] Hastie, T., Tibshirani, R., & Friedman, J. (2009) The Elements of
+ [10] Hastie, T., Tibshirani, R., & Friedman, J. (2009) The Elements of
       Statistical Learning (2nd ed.). Springer.
       https://doi.org/10.1007/978-0-387-84858-7
-  [9] Ye, J. (1998) On Measuring and Correcting the Effects of Data Mining and
+ [11] Ye, J. (1998) On Measuring and Correcting the Effects of Data Mining and
       Model Selection. JASA, 93(441):120–131. (Generalized df)
       https://doi.org/10.1080/01621459.1998.10474094
- [10] Akaike, H. (1973) Information Theory and an Extension of the Maximum
+ [12] Akaike, H. (1973) Information Theory and an Extension of the Maximum
       Likelihood Principle. In: 2nd Int. Symp. on Information Theory. (AIC/KL)
       https://doi.org/10.1007/978-1-4612-0919-5_38
- [11] Hoerl, A. E. & Kennard, R. W. (1970) Ridge Regression: Biased Estimation
+ [13] Hoerl, A. E. & Kennard, R. W. (1970) Ridge Regression: Biased Estimation
       for Nonorthogonal Problems. Technometrics, 12(1):55–67.
       https://doi.org/10.1080/00401706.1970.10488634
- [12] Satterthwaite, F. E. (1946) An Approximate Distribution of Estimates of
-      Variance Components. Biometrics Bulletin, 2(6):110–114.
-      https://doi.org/10.2307/3002019
- [13] Kenward, M. G. & Roger, J. H. (1997) Small Sample Inference for Fixed 
-      Effects from Restricted Maximum Likelihood. Biometrics, 53(3):983–997.
-      https://doi.org/10.2307/2533558
- [14] Vinod, H. D. (1987) Confidence Intervals for Ridge Regression Parameters.
-      In Time Series and Econometric Modelling, pp. 279–300.
-      https://doi.org/10.1007/978-94-009-4790-0_19
- [15] Fisher, R. A. (1921) On the "Probable Error" of a Coefficient of
-      Correlation Deduced from a Small Sample. Metron, 1:3–32. (Fisher z)
- [16] Neuhaus, J. M., & Segal, M. R. (1993). Design effects for binary 
+ [14] Neuhaus, J. M., & Segal, M. R. (1993). Design effects for binary 
       regression models fitted to dependent data. Statistics in Medicine, 
       12(13):1259–1268. https://doi.org/10.1002/sim.4780121309
- [17] Cameron, A. C., & Miller, D. L. (2015) A Practitioner's Guide to 
+ [15] Cameron, A. C., & Miller, D. L. (2015) A Practitioner's Guide to 
       Cluster-Robust Inference. J. Hum. Resour., 50(2):317–372.
       https://doi.org/10.3368/jhr.50.2.317
+ [16] Satterthwaite, F. E. (1946) An Approximate Distribution of Estimates of
+      Variance Components. Biometrics Bulletin, 2(6):110–114.
+      https://doi.org/10.2307/3002019
+ [17] Kenward, M. G. & Roger, J. H. (1997) Small Sample Inference for Fixed 
+      Effects from Restricted Maximum Likelihood. Biometrics, 53(3):983–997.
+      https://doi.org/10.2307/2533558
+ [18] Vinod, H. D. (1987) Confidence Intervals for Ridge Regression Parameters.
+      In Time Series and Econometric Modelling, pp. 279–300.
+      https://doi.org/10.1007/978-94-009-4790-0_19
 
- bootridge (version 2026.01.31)
+ bootridge (version 2026.02.18)
  Author: Andrew Charles Penn
 </pre>
 
@@ -527,7 +538,7 @@
 
  Bootstrap resamples (nboot): 100
 
- Minimized .632 bootstrap prediction error: 0.0463802
+ Minimized .632 bootstrap prediction error: 0.045731
 
  Bootstrap optimized ridge tuning constant (lambda): 0.0767424
 
@@ -578,7 +589,7 @@
 
  Bootstrap resamples (nboot): 100
 
- Minimized .632 bootstrap prediction error: 1.00443
+ Minimized .632 bootstrap prediction error: 1.04463
 
  Bootstrap optimized ridge tuning constant (lambda): 2.58499
 
@@ -607,7 +618,7 @@
 
  Bootstrap resamples (nboot): 100
 
- Minimized .632 bootstrap prediction error: 1.00443
+ Minimized .632 bootstrap prediction error: 1.04463
 
  Bootstrap optimized ridge tuning constant (lambda): 2.58499
 
@@ -673,7 +684,7 @@
 
  Bootstrap resamples (nboot): 200
 
- Minimized .632 bootstrap prediction error: 0.117389
+ Minimized .632 bootstrap prediction error: 0.117537
 
  Bootstrap optimized ridge tuning constant (lambda): 0.028454
 
@@ -702,7 +713,7 @@
 
  Bootstrap resamples (nboot): 200
 
- Minimized .632 bootstrap prediction error: 0.117389
+ Minimized .632 bootstrap prediction error: 0.117537
 
  Bootstrap optimized ridge tuning constant (lambda): 0.028454
 
@@ -761,7 +772,7 @@
 
  Bootstrap resamples (nboot): 200
 
- Minimized .632 bootstrap prediction error: 0.012419
+ Minimized .632 bootstrap prediction error: 0.0122387
 
  Bootstrap optimized ridge tuning constant (lambda): 0.0310279
 
@@ -844,7 +855,7 @@
 
  Bootstrap resamples (nboot): 200
 
- Minimized .632 bootstrap prediction error: 0.408894
+ Minimized .632 bootstrap prediction error: 0.41427
 
  Bootstrap optimized ridge tuning constant (lambda): 0.305249
 
@@ -875,7 +886,7 @@
 
  Bootstrap resamples (nboot): 200
 
- Minimized .632 bootstrap prediction error: 0.536566
+ Minimized .632 bootstrap prediction error: 0.541584
 
  Bootstrap optimized ridge tuning constant (lambda): 1.34378
 
@@ -983,7 +994,7 @@
 
  Bootstrap resamples (nboot): 200
 
- Minimized .632 bootstrap prediction error: 0.456021
+ Minimized .632 bootstrap prediction error: 0.463286
 
  Bootstrap optimized ridge tuning constant (lambda, Deff-adjusted): 0.318356
 
@@ -1013,7 +1024,7 @@
 
  Bootstrap resamples (nboot): 200
 
- Minimized .632 bootstrap prediction error: 0.456021
+ Minimized .632 bootstrap prediction error: 0.463286
 
  Bootstrap optimized ridge tuning constant (lambda, Deff-adjusted): 0.115848
 
@@ -1059,7 +1070,7 @@
 
  Bootstrap resamples (nboot): 100
 
- Minimized .632 bootstrap prediction error: 0.323511
+ Minimized .632 bootstrap prediction error: 0.325269
 
  Bootstrap optimized ridge tuning constant (lambda): 0.621467
 
@@ -1106,7 +1117,7 @@
 
  Bootstrap resamples (nboot): 100
 
- Minimized .632 bootstrap prediction error: 0.498431
+ Minimized .632 bootstrap prediction error: 0.497065
 
  Bootstrap optimized ridge tuning constant (lambda): 0.58522
 
@@ -1224,7 +1235,7 @@
 Running bootridge ...
 
 --- Performance Results ---
-Runtime: 428.29 seconds
+Runtime: 949.06 seconds
 Optimized Lambda: 65.132264
 Total Iterations: 12
 Correlation of estimates for Gene 158: 0.9952
@@ -1313,11 +1324,92 @@ Power (i.e. TPR): 94.8%</pre>
 Running Multivariate bootridge (Shrinkage shared across genes)...
 
 --- Performance Results ---
-Runtime: 250.43 seconds
+Runtime: 497.05 seconds
 Optimized Lambda: 510.212731
 Correlation of Fold-Changes across 15000 genes: 0.9759
 Number of coefficients: [50  15000] (Expected: [50 x 15000])
 Number of pairwise correlations: [112492500] (Expected: 112492500)</pre>
+</div>
+
+<h3><a name="11">Demonstration 11</a></h3>
+<div class="demo">
+<p>The following code</p>
+<pre class="example">
+ %% --- Stress-test: High-p Voxel-wise Neural Encoding Simulation ---
+ %% Scenario: Reconstructing Visual Stimuli from fMRI BOLD signals
+ %% N = 500 volumes (samples), p = 8000 voxels, q = 1 stimulus feature
+ %% This demo requires the signal package in octave
+
+ % 1. Setup Dimensions
+ N = 500; p = 8000; q = 1; nboot = 200;
+ rand ('seed', 123); randn ('seed', 123);
+ fprintf('Simulating fMRI Encoding: %d timepoints, %d voxels...\n', N, p);
+
+ % 2. Generate Design Matrix X (The Voxels)
+ %    Spatial correlation between voxels (columns) and time points (rows)
+ X_raw = randn (N, p-1);
+ X = [ones(N, 1), filter([0.5 1 0.5], 1, X_raw, [], 2)];
+ X(:,2:end) = filter ([0.1, 0.4, 0.9, 1, 0.6, 0.2], 1, X(:,2:end), [], 1);
+
+ % 3. Define the "Neural Code" (True Weights)
+ true_beta_sparse = zeros (p, q);                       % Initialise
+ active_voxels = 1 + ceil (rand (1, 25) * (p - 1));     % 50 spatial clusters
+ true_beta_sparse(active_voxels) = randn (25, 1) * 100; % Active voxels
+ kernel = [0.05 0.1 0.4 0.8 1 0.8 0.4 0.1 0.05];        % Smoothing kernel
+ true_beta = filter (kernel, 1, true_beta_sparse);      % Smooth active voxels
+
+ % 4. Generate Outcome Y (The Stimulus)
+ % Signal from smoothed clusters + Gaussian noise
+ Y = X * true_beta + randn (N, q);
+
+ % 5. Estimate Design Effect (Deff) to account for serial dependence
+ % We use the autocorrelation of Y to estimate the variance inflation factor
+ %
+ %  Bayley, G. V., & Hammersley, J. M. (1946). The "Effective" Number of
+ %    Independent Observations in an Autocorrelated Time Series. Supplement to
+ %    the Journal of the Royal Statistical Society, 8(2), 184–197.
+ %    https://doi.org/10.2307/2983560
+ try
+   info = ver;
+   isoctave = any (ismember ({info.Name}, 'Octave'));
+   if (isoctave)
+     pkg load signal;
+   end
+   [r, lags] = xcov (Y - mean (Y), 10, 'coeff');
+   Deff = 1 + 2 * sum (r(lags > 0));
+   fprintf ('Estimated Design Effect (Deff): %.3f\n', Deff);
+ catch
+   Deff = 1;
+ end
+
+ % 6. Run bootridge
+ fprintf ('Running bootridge (Global Lambda Optimization)...\n');
+ tic;
+ % Run the bootridge function
+ S = bootridge (Y, X, [], nboot, 0.05, [], Deff, 123, 0.05);
+ runtime = toc;
+
+ % 7. Performance Results
+ estimated_beta = S.Coefficient;
+ correlation = corr (estimated_beta, true_beta);
+ fprintf ('\n--- Performance Results ---\n');
+ fprintf ('Runtime: %.2f seconds\n', runtime);
+ fprintf ('Optimized Lambda: %.6f\n', S.lambda);
+
+ fprintf ('Correlation of Voxel Weight Map: %.4f\n', correlation);
+ fprintf ('Number of coefficients: [%s] (Expected: [8000 x 1])\n', ...
+           num2str (size (S.Coefficient)));</pre>
+<p>Produces the following output</p>
+<pre class="example">Simulating fMRI Encoding: 500 timepoints, 8000 voxels...
+Estimated Design Effect (Deff): 3.489
+Running bootridge (Global Lambda Optimization)...
+Note: t-statistics evaluated with effective degrees of freedom clamped at 1 degree of freedom.
+
+--- Performance Results ---
+Runtime: 1433.38 seconds
+Optimized Lambda: 0.326447
+Correlation of Voxel Weight Map: 0.3970
+Number of coefficients: [8000     1] (Expected: [8000 x 1])</pre>
 </div>
 
 <p>Package: <a href="../index.html">statistics-resampling</a></p>

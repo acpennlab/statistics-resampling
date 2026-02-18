@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
   <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-  <meta name="date" content="2026-02-17"/>
+  <meta name="date" content="2026-02-18"/>
   <meta name="generator" content="generate_html 0.3.3" />
   <meta name="author" content="Andrew Penn" />
   <meta name="description" content="A package for statistical analysis using resampling methods." />
@@ -1958,52 +1958,52 @@ lot_1                                  +3.973      +2.172      +5.775      <.001
 lot_2                                  +3.466      +1.962      +4.970      <.001
 
 PREDICTION ERROR of the FULL MODEL = 2.86
-PRED_ERR =
+    PRED_ERR =
 
-  scalar structure containing the fields:
+      scalar structure containing the fields:
 
-    MODEL =
-    {
-      [1,1] = amount ~ 1
-      [2,1] = amount ~ 1 + hrs
-      [3,1] = amount ~ 1 + hrs + lot
-    }
+        MODEL =
+        {
+          [1,1] = amount ~ 1
+          [2,1] = amount ~ 1 + hrs
+          [3,1] = amount ~ 1 + hrs + lot
+        }
 
-    PE =
+        PE =
 
-           42.937
-           5.9086
-           2.8582
+               42.937
+               5.9086
+               2.8582
 
-    PRESS =
+        PRESS =
 
-           1159.3
-           159.53
-           77.171
+               1159.3
+               159.53
+               77.171
 
-    RSQ_pred =
+        RSQ_pred =
 
-        -0.075489
-            0.852
-          0.92841
+            -0.075489
+                0.852
+              0.92841
 
-    EIC =
+        EIC =
 
-           178.41
-              125
-           106.36
+               178.41
+                  125
+               106.36
 
-    RL =
+        RL =
 
-                1
-        3.968e+11
-       4.4286e+15
+                    1
+            3.968e+11
+           4.4286e+15
 
-    Wt =
+        Wt =
 
-       2.2578e-16
-       8.9592e-05
-          0.99991</pre>
+           2.2578e-16
+           8.9592e-05
+              0.99991</pre>
 <p>and the following figure</p>
 <p><table class="images">
 <tr>
@@ -2088,79 +2088,79 @@ PRED_ERR =
 <p>Produces the following output</p>
 <pre class="example">PRED_ERR =
 
-  scalar structure containing the fields:
+      scalar structure containing the fields:
 
-    MODEL =
-    {
-      [1,1] = sr ~ 1
-      [2,1] = sr ~ 1 + pop15
-      [3,1] = sr ~ 1 + pop15 + pop75
-      [4,1] = sr ~ 1 + pop15 + pop75 + dpi
-      [5,1] = sr ~ 1 + pop15 + pop75 + dpi + ddpi
-    }
+        MODEL =
+        {
+          [1,1] = sr ~ 1
+          [2,1] = sr ~ 1 + pop15
+          [3,1] = sr ~ 1 + pop15 + pop75
+          [4,1] = sr ~ 1 + pop15 + pop75 + dpi
+          [5,1] = sr ~ 1 + pop15 + pop75 + dpi + ddpi
+        }
 
-    PE =
+        PE =
 
-           20.477
-             16.8
-            16.34
-            16.22
-           15.191
+               20.477
+                 16.8
+                16.34
+                16.22
+               15.191
 
-    PRESS =
+        PRESS =
 
-           1023.8
-              840
-           817.01
-           811.02
-           759.53
+               1023.8
+                  840
+               817.01
+               811.02
+               759.53
 
-    RSQ_pred =
+        RSQ_pred =
 
-        -0.040869
-          0.14602
-          0.16939
-          0.17548
-          0.22783
+            -0.040869
+              0.14602
+              0.16939
+              0.17548
+              0.22783
 
-    EIC =
+        EIC =
 
-           293.13
-           283.41
-           282.22
-           281.92
-           278.87
+               293.13
+               283.41
+               282.22
+               281.92
+               278.87
 
-    RL =
+        RL =
 
-                1
+                    1
+               129.42
+               234.65
+               271.81
+               1254.4
+
+        Wt =
+
+           0.00052875
+             0.068431
+              0.12407
+              0.14372
+              0.66325
+
+
+    ans =
+
+       0.00020002
+          0.10891
+          0.17192
+         0.017102
+
+    ans =
+
            129.42
-           234.65
-           271.81
-           1254.4
-
-    Wt =
-
-       0.00052875
-         0.068431
-          0.12407
-          0.14372
-          0.66325
-
-
-ans =
-
-   0.00020002
-      0.10891
-      0.17192
-     0.017102
-
-ans =
-
-       129.42
-       1.8131
-       1.1583
-       4.6149</pre>
+           1.8131
+           1.1583
+           4.6149</pre>
 </div>
 
 <p>Package: <a href="../index.html">statistics-resampling</a></p>

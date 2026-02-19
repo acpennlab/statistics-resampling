@@ -113,9 +113,11 @@
       constant.
 
       'bootridge (Y, X, CATEGOR, NBOOT, ALPHA)' sets the central mass of equal-
-      tailed credibility intervals (CI) to (1 - ALPHA), with probability mass
-      ALPHA/2 in each tail. ALPHA must be a scalar value between 0 and 1. The
-      default value of ALPHA is 0.05 for 95% intervals.
+      tailed credibility intervals (CI) to (1 - ALPHA) with probability mass
+      ALPHA/2 in each tail, and sets the threshold for the adjusted stability
+      selection (SS) probabilities of the regression coefficients to (1 - ALPHA).
+      ALPHA must be a scalar value between 0 and 1. The default value of ALPHA
+      is 0.05 for 95% intervals.
 
       'bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L)' specifies a hypothesis
       matrix L of size n-by-c defining c linear contrasts or model-based
@@ -258,10 +260,9 @@
             The probabilities that the sign of the regression coefficients
             remained consistent across max(nboot,1999) bootstrap resamples [6].
             Raw probabilities are smoothed using a Jeffreys prior and, if
-            applicable, adjusted by the design effect (Deff) via a Probit-link
-            transformation: Phi ( Phi^-1(stability) / sqrt (Deff) ), where Phi
-            and Phi^-1 are the cumulative standard normal distribution function
-            and its inverse respectively.
+            applicable, adjusted by the design effect (Deff). In the printed
+            summary, stability exceeding (1 - ALPHA) is indicated by (+) or (-)
+            to denote the consistent direction of the effect.
 
         o RTAB
             Matrix summarizing residual correlations (strictly lower-
@@ -328,6 +329,12 @@
       for the coefficient estimation in a given bootstrap draw), 
       thereby maintaining a principled separation between the data used 
       for likelihood estimation and the data used for prior tuning.
+
+      STABILITY SELECTION:
+      The directional reproducibility of the sign of the regression coefficients
+      under resampling are quantified and reported as Stability Selection (SS).
+      It is possible for a shrunken coefficient to be highly stable in sign
+      despite having anecdotal Bayes Factors.
 
       BAYES FACTORS:
       For regression coefficients and linear estimates, Bayes factors are
@@ -402,6 +409,16 @@
          and is in line with classical variance component approximations (e.g.,
          Satterthwaite/Kenward–Roger) and ridge inference recommendations
          [16–18].
+
+      4. Stability Selection: The sign-consistency probabilities (denoted as
+         stability) under bootstrap resampling are adjusted for the design
+         effect via a Probit-link transformation: 
+            Phi ( Phi^-1(stability) / sqrt (Deff) )
+         Where Phi and Phi^-1 are the cumulative standard normal distribution
+         function and its inverse respectively. This adjustment ensures that
+         the reported stability reflects the effective sample size rather than
+         the raw number of observations, preventing over-certainty in the
+         presence of clustered or dependent data.
 
       ESTIMATING THE DESIGN EFFECT:
       While DEFF = 1 + (g - 1) * r provides a useful analytical upper bound 
@@ -549,13 +566,14 @@
  Inferential degrees of freedom (df_t): 28.0
  Used for credible intervals and Bayes factors below.
 
- 95% credible intervals and Bayes factors for regression coefficients:
- (Global ridge prior contribution to posterior precision: 0.26 %)
+ 95% credible intervals and Bayes factors for regression coefficients.
+ Global ridge prior contribution to posterior precision: 0.26 %
+ Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10        Prior
+ Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
  +24.92        +20.25        +29.59        +NaN          U (-Inf, Inf)
- +9.430        +8.663        +10.20        +42.91        t (0, 7.29, 28.0)</pre>
+ +9.430        +8.663        +10.20        +42.9     (+) t (0, 7.29, 28.0)</pre>
 </div>
 
 <h3><a name="2">Demonstration 2</a></h3>
@@ -600,13 +618,14 @@
  Inferential degrees of freedom (df_t): 9.49
  Used for credible intervals and Bayes factors below.
 
- 95% credible intervals and Bayes factors for regression coefficients:
- (Global ridge prior contribution to posterior precision: 48.66 %)
+ 95% credible intervals and Bayes factors for regression coefficients.
+ Global ridge prior contribution to posterior precision: 48.66 %
+ Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10        Prior
+ Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
  +49.84        +39.83        +59.85        +NaN          U (-Inf, Inf)
- +5.545        -8.834        +19.92        +0.03837      t (0, 9.18, 9.49)
+ +5.545        -8.834        +19.92        +0.0384       t (0, 9.18, 9.49)
 
 
  Empirical Bayes Ridge Regression (.632 Bootstrap Tuning) - Summary
@@ -629,8 +648,8 @@
  Inferential degrees of freedom (df_t): 9.49
  Used for credible intervals and Bayes factors below.
 
- 95% credible intervals and Bayes factors for linear estimates:
- (Global ridge prior contribution to posterior precision: 48.66 %)
+ 95% credible intervals and Bayes factors for linear estimates.
+ Global ridge prior contribution to posterior precision: 48.66 %
 
  Outcome 1:
  Estimate      CI_lower      CI_upper      lnBF10        Prior
@@ -695,13 +714,13 @@
  Inferential degrees of freedom (df_t): 18.1
  Used for credible intervals and Bayes factors below.
 
- 95% credible intervals and Bayes factors for linear estimates:
- (Global ridge prior contribution to posterior precision: 0.82 %)
+ 95% credible intervals and Bayes factors for linear estimates.
+ Global ridge prior contribution to posterior precision: 0.82 %
 
  Outcome 1:
  Estimate      CI_lower      CI_upper      lnBF10        Prior
- +1.994        +1.258        +2.731        +6.856        t (0, 6.58, 18.1)
- +3.191        +2.455        +3.927        +13.48        t (0, 6.58, 18.1)
+ +1.994        +1.258        +2.731        +6.86         t (0, 6.58, 18.1)
+ +3.191        +2.455        +3.927        +13.5         t (0, 6.58, 18.1)
 
 
  Empirical Bayes Ridge Regression (.632 Bootstrap Tuning) - Summary
@@ -724,8 +743,8 @@
  Inferential degrees of freedom (df_t): 18.1
  Used for credible intervals and Bayes factors below.
 
- 95% credible intervals and Bayes factors for linear estimates:
- (Global ridge prior contribution to posterior precision: 0.82 %)
+ 95% credible intervals and Bayes factors for linear estimates.
+ Global ridge prior contribution to posterior precision: 0.82 %
 
  Outcome 1:
  Estimate      CI_lower      CI_upper      lnBF10        Prior
@@ -783,14 +802,15 @@
  Inferential degrees of freedom (df_t): 28.0
  Used for credible intervals and Bayes factors below.
 
- 95% credible intervals and Bayes factors for regression coefficients:
- (Global ridge prior contribution to posterior precision: 0.33 %)
+ 95% credible intervals and Bayes factors for regression coefficients.
+ Global ridge prior contribution to posterior precision: 0.33 %
+ Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10        Prior
+ Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
  +73.37        +72.71        +74.03        +NaN          U (-Inf, Inf)
- +3.601        +3.402        +3.800        +53.45        t (0, 2.65, 28.0)
- -10.03        -11.53        -8.528        +26.94        t (0, 10.1, 28.0)</pre>
+ +3.601        +3.402        +3.800        +53.4     (+) t (0, 2.65, 28.0)
+ -10.03        -11.53        -8.528        +26.9     (-) t (0, 10.1, 28.0)</pre>
 </div>
 
 <h3><a name="5">Demonstration 5</a></h3>
@@ -866,15 +886,16 @@
  Inferential degrees of freedom (df_t): 20.3
  Used for credible intervals and Bayes factors below.
 
- 95% credible intervals and Bayes factors for regression coefficients:
- (Global ridge prior contribution to posterior precision: 8.86 %)
+ 95% credible intervals and Bayes factors for regression coefficients.
+ Global ridge prior contribution to posterior precision: 8.86 %
+ Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10        Prior
+ Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
  +0.6492       +0.6238       +0.6746       +NaN          U (-Inf, Inf)
- -0.07454      -0.1241       -0.02501      +2.694        t (0, 0.108, 20.3)
- -0.1189       -0.1685       -0.06942      +7.044        t (0, 0.108, 20.3)
- +0.1136       +0.02100      +0.2061       +2.084        t (0, 0.108, 20.3)
+ -0.07454      -0.1241       -0.02501      +2.69     (-) t (0, 0.108, 20.3)
+ -0.1189       -0.1685       -0.06942      +7.04     (-) t (0, 0.108, 20.3)
+ +0.1136       +0.02100      +0.2061       +2.08     (+) t (0, 0.108, 20.3)
 
 
  Empirical Bayes Ridge Regression (.632 Bootstrap Tuning) - Summary
@@ -897,26 +918,27 @@
  Inferential degrees of freedom (df_t): 15.2
  Used for credible intervals and Bayes factors below.
 
- 95% credible intervals and Bayes factors for regression coefficients:
- (Global ridge prior contribution to posterior precision: 40.29 %)
+ 95% credible intervals and Bayes factors for regression coefficients.
+ Global ridge prior contribution to posterior precision: 40.29 %
+ Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10        Prior
+ Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
  +0.6492       +0.6209       +0.6774       +NaN          U (-Inf, Inf)
- +0.03475      -0.04703      +0.1165       +0.04698      t (0, 0.0561, 15.2)
- -0.007114     -0.08890      +0.07467      -0.3594       t (0, 0.0561, 15.2)
- +0.03475      -0.04703      +0.1165       +0.04698      t (0, 0.0561, 15.2)
- -0.001133     -0.08292      +0.08065      -0.3772       t (0, 0.0561, 15.2)
- +0.004848     -0.07694      +0.08663      -0.3692       t (0, 0.0561, 15.2)
- +0.01436      -0.06856      +0.09729      -0.2917       t (0, 0.0561, 15.2)
- +0.002400     -0.08053      +0.08533      -0.3618       t (0, 0.0561, 15.2)
- -0.003582     -0.08651      +0.07934      -0.3593       t (0, 0.0561, 15.2)
- -0.03349      -0.1164       +0.04944      +0.02064      t (0, 0.0561, 15.2)
- -0.0005911    -0.08352      +0.08233      -0.3637       t (0, 0.0561, 15.2)
- -0.02751      -0.1104       +0.05542      -0.1024       t (0, 0.0561, 15.2)
- -0.04841      -0.1174       +0.02057      +0.5616       t (0, 0.0561, 15.2)
- -0.1021       -0.1532       -0.05109      +5.517        t (0, 0.0561, 15.2)
- +0.07209      -0.009930     +0.1541       +1.304        t (0, 0.0561, 15.2)</pre>
+ +0.03475      -0.04703      +0.1165       +0.0470       t (0, 0.0561, 15.2)
+ -0.007114     -0.08890      +0.07467      -0.359        t (0, 0.0561, 15.2)
+ +0.03475      -0.04703      +0.1165       +0.0470       t (0, 0.0561, 15.2)
+ -0.001133     -0.08292      +0.08065      -0.377        t (0, 0.0561, 15.2)
+ +0.004848     -0.07694      +0.08663      -0.369        t (0, 0.0561, 15.2)
+ +0.01436      -0.06856      +0.09729      -0.292        t (0, 0.0561, 15.2)
+ +0.002400     -0.08053      +0.08533      -0.362        t (0, 0.0561, 15.2)
+ -0.003582     -0.08651      +0.07934      -0.359        t (0, 0.0561, 15.2)
+ -0.03349      -0.1164       +0.04944      +0.0206       t (0, 0.0561, 15.2)
+ -0.0005911    -0.08352      +0.08233      -0.364        t (0, 0.0561, 15.2)
+ -0.02751      -0.1104       +0.05542      -0.102        t (0, 0.0561, 15.2)
+ -0.04841      -0.1174       +0.02057      +0.562    (-) t (0, 0.0561, 15.2)
+ -0.1021       -0.1532       -0.05109      +5.52     (-) t (0, 0.0561, 15.2)
+ +0.07209      -0.009930     +0.1541       +1.30     (+) t (0, 0.0561, 15.2)</pre>
 </div>
 
 <h3><a name="6">Demonstration 6</a></h3>
@@ -1005,14 +1027,14 @@
  Inferential degrees of freedom (df_t, Deff-adjusted): 13.6
  Used for credible intervals and Bayes factors below.
 
- 95% credible intervals and Bayes factors for linear estimates:
- (Global ridge prior contribution to posterior precision: 6.50 %)
+ 95% credible intervals and Bayes factors for linear estimates.
+ Global ridge prior contribution to posterior precision: 6.50 %
 
  Outcome 1:
  Estimate      CI_lower      CI_upper      lnBF10        Prior
- -6.336        -12.21        -0.4634       +1.026        t (0, 11.2, 13.6)
- -12.82        -18.69        -6.947        +5.627        t (0, 11.2, 13.6)
- -6.483        -12.32        -0.6518       +1.258        t (0, 9.99, 13.6)
+ -6.336        -12.21        -0.4634       +1.03         t (0, 11.2, 13.6)
+ -12.82        -18.69        -6.947        +5.63         t (0, 11.2, 13.6)
+ -6.483        -12.32        -0.6518       +1.26         t (0, 9.99, 13.6)
 
 
  Empirical Bayes Ridge Regression (.632 Bootstrap Tuning) - Summary
@@ -1035,14 +1057,14 @@
  Inferential degrees of freedom (df_t, Deff-adjusted): 3.05
  Used for credible intervals and Bayes factors below.
 
- 95% credible intervals and Bayes factors for linear estimates:
- (Global ridge prior contribution to posterior precision: 2.47 %)
+ 95% credible intervals and Bayes factors for linear estimates.
+ Global ridge prior contribution to posterior precision: 2.47 %
 
  Outcome 1:
  Estimate      CI_lower      CI_upper      lnBF10        Prior
- -6.532        -21.08        +8.017        -0.8711       t (0, 30.7, 3.05)
- -13.33        -27.88        +1.214        +0.7764       t (0, 30.7, 3.05)
- -6.802        -21.31        +7.708        -0.6910       t (0, 27.4, 3.05)</pre>
+ -6.532        -21.08        +8.017        -0.871        t (0, 30.7, 3.05)
+ -13.33        -27.88        +1.214        +0.776        t (0, 30.7, 3.05)
+ -6.802        -21.31        +7.708        -0.691        t (0, 27.4, 3.05)</pre>
 </div>
 
 <h3><a name="7">Demonstration 7</a></h3>
@@ -1081,13 +1103,14 @@
  Inferential degrees of freedom (df_t): 38.0
  Used for credible intervals and Bayes factors below.
 
- 95% credible intervals and Bayes factors for regression coefficients:
- (Global ridge prior contribution to posterior precision: 1.57 %)
+ 95% credible intervals and Bayes factors for regression coefficients.
+ Global ridge prior contribution to posterior precision: 1.57 %
+ Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10        Prior
+ Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
  +1.988        +1.926        +2.050        +NaN          U (-Inf, Inf)
- +0.4748       +0.3715       +0.5782       +21.07        t (0, 0.408, 38.0)</pre>
+ +0.4748       +0.3715       +0.5782       +21.1     (+) t (0, 0.408, 38.0)</pre>
 </div>
 
 <h3><a name="8">Demonstration 8</a></h3>
@@ -1132,20 +1155,21 @@
  (Prior on Fisher's z is flat/improper)
 
  Outcome J     Outcome I     Correlation   CI_lower      CI_upper     
- 1             2             -0.07093      -0.3627       +0.2335   
+ 1             2             -0.07093      -0.3627       +0.2335  
 
- 90% credible intervals and Bayes factors for regression coefficients:
- (Global ridge prior contribution to posterior precision: 1.69 %)
+ 90% credible intervals and Bayes factors for regression coefficients.
+ Global ridge prior contribution to posterior precision: 1.69 %
+ Stability selection (SS): >90% for the (-) or (+) sign of the coefficient.
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10        Prior
+ Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
  +1.482        +1.415        +1.548        +NaN          U (-Inf, Inf)
- +0.5697       +0.5144       +0.6250       +37.48        t (0, 0.251, 33.0)
+ +0.5697       +0.5144       +0.6250       +37.5     (+) t (0, 0.251, 33.0)
 
  Outcome 2:
- Coefficient   CI_lower      CI_upper      lnBF10        Prior
+ Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
  +2.031        +1.952        +2.111        +NaN          U (-Inf, Inf)
- -0.2938       -0.3599       -0.2277       +14.95        t (0, 0.300, 33.0)</pre>
+ -0.2938       -0.3599       -0.2277       +14.9     (-) t (0, 0.300, 33.0)</pre>
 </div>
 
 <h3><a name="9">Demonstration 9</a></h3>
@@ -1235,7 +1259,7 @@
 Running bootridge ...
 
 --- Performance Results ---
-Runtime: 949.06 seconds
+Runtime: 909.79 seconds
 Optimized Lambda: 65.132264
 Total Iterations: 12
 Correlation of estimates for Gene 158: 0.9952
@@ -1324,7 +1348,7 @@ Power (i.e. TPR): 94.8%</pre>
 Running Multivariate bootridge (Shrinkage shared across genes)...
 
 --- Performance Results ---
-Runtime: 497.05 seconds
+Runtime: 498.68 seconds
 Optimized Lambda: 510.212731
 Correlation of Fold-Changes across 15000 genes: 0.9759
 Number of coefficients: [50  15000] (Expected: [50 x 15000])
@@ -1406,7 +1430,7 @@ Running bootridge (Global Lambda Optimization)...
 Note: t-statistics evaluated with effective degrees of freedom clamped at 1 degree of freedom.
 
 --- Performance Results ---
-Runtime: 1433.38 seconds
+Runtime: 1493.30 seconds
 Optimized Lambda: 0.326447
 Correlation of Voxel Weight Map: 0.3970
 Number of coefficients: [8000     1] (Expected: [8000 x 1])</pre>

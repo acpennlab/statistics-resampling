@@ -150,24 +150,24 @@
 %      The output S is a structure containing the following fields (listed in
 %      order of appearance):
 %
-%        o Coefficient
+%        o coefficient
 %            n-by-q matrix of posterior mean regression coefficients for each
 %            outcome when no hypothesis matrix L is specified.
 %
-%        o Estimate
+%        o estimate
 %            c-by-q matrix of posterior mean linear estimates when a hypothesis
 %            matrix L is specified. This field is returned instead of
-%            'Coefficient' when L is non-empty.
+%            'coefficient' when L is non-empty.
 %
 %        o CI_lower
 %            Matrix of lower bounds of the (1 - ALPHA) credibility intervals
 %            for coefficients or linear estimates. Dimensions match those of
-%            'Coefficient' or 'Estimate'.
+%            'coefficient' or 'estimate'.
 %
 %        o CI_upper
 %            Matrix of upper bounds of the (1 - ALPHA) credibility intervals
 %            for coefficients or linear estimates. Dimensions match those of
-%            'Coefficient' or 'Estimate'.
+%            'coefficient' or 'estimate'.
 %
 %        o BF10
 %            Matrix of Bayes factors (BF10) for testing whether each regression
@@ -239,12 +239,12 @@
 %            remained consistent across max(nboot,1999) bootstrap resamples [6].
 %            Raw probabilities are smoothed using a Jeffreys prior and, if
 %            applicable, adjusted by the design effect (Deff). In the printed
-%            summary, stability exceeding (1 - ALPHA) is indicated by (+) or (-)
-%            to denote the consistent direction of the effect.
+%            summary, stability exceeding (1 - ALPHA / 2) is indicated by (+)
+%            or (-) to denote the consistent direction of the effect.
 %
 %        o RTAB
 %            Matrix summarizing residual correlations (strictly lower-
-%            triangular pairs). The columns correspond to Outcome J, Outcome I, 
+%            triangular pairs). The columns correspond to outcome J, outcome I, 
 %            and the coefficient and credible intervals for their correlation.
 %
 %            Credible intervals for correlations are computed on Fisher’s z
@@ -802,7 +802,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   distpdf = @(t, mu, v, df) (exp (gammaln ((df + 1) / 2) - ...
                              gammaln (df / 2)) ./ sqrt(df * pi * v)) .* ...
                              (1 + (t - mu).^2 ./ (df .* v)).^(-(df + 1) / 2);
-  % Normal (z) distribution:
+  % Normal (z) distribution (df input argument is ignored):
   %distinv = @(p, df) sqrt (2) * erfinv (2 * p - 1);
   %distpdf = @(z, mu, v, df) exp (-0.5 * ((z - mu).^2) ./ v) ./ sqrt (2 * pi * v);
   
@@ -917,7 +917,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     n_eff = df_t;
 
     % Standard error of Z
-    SE_z = 1 / sqrt (max (n_eff, 4) - 3);
+    SE_z = 1 / sqrt (max (n_eff, 3) - 2);
 
     % Credible intervals under a flat (improper) prior on Fisher’s z.
     % Since the posterior is proportional to the marginal-t likelihood, 
@@ -934,7 +934,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   end
 
   % Pack results
-  if (c < 1); S.Coefficient = Beta; else; S.Estimate = mu; end;
+  if (c < 1); S.coefficient = Beta; else; S.estimate = mu; end;
   S.CI_lower = CI_lower;
   S.CI_upper = CI_upper;
   S.BF10 = BF10;
@@ -1006,7 +1006,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
                        ' correlations between outcomes:\n'), ...
                        100 * (1 - alpha));
       fprintf (' (Prior on Fisher''s z is flat/improper)\n')
-      fprintf (cat (2, '\n Outcome J     Outcome I     Correlation', ...
+      fprintf (cat (2, '\n Outcome J     Outcome I     correlation', ...
                         '   CI_lower      CI_upper     \n'));
       for i = 1:q*(q-1)*0.5
         fprintf (' %-10d    %-10d    %#-+9.4g     %#-+9.4g     %#-+9.4g\n', ...
@@ -1022,12 +1022,17 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
       fprintf (cat (2, ' Global ridge prior contribution to posterior ', ... 
                        'precision: %#.2f %%\n'), prior_perc_ridge);
       fprintf (cat (2, ' Stability selection (SS): >%.3g%% for the (-) or ', ...
-                       '(+) sign of the coefficient.\n'), 100 * (1 - alpha));
+                       '(+) sign of the coefficient.\n'), 100 * (1 - alpha / 2));
+      if (deff == 1)
+        fprintf (' SS probabilities are reported in S.stability\n');
+      else
+        fprintf (' Deff-adjusted SS probabilities are reported in S.stability\n');
+      end
       for j = 1:q
-        fprintf (cat (2, '\n Outcome %d:\n Coefficient   CI_lower      ', ...
-                         'CI_upper      lnBF10    SS  Prior\n'), j);
+        fprintf (cat (2, '\n Outcome %d:\n coefficient   CI_lower      ', ...
+                         'CI_upper      lnBF10    SS  prior\n'), j);
         for k = 1:n
-          if (stability(k, j) > (1 - alpha))
+          if (stability(k, j) >= (1 - alpha / 2))
             if (Beta(k, j) < 0)
               ss = '(-)';
             elseif (Beta(k, j) > 0)
@@ -1045,12 +1050,12 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     else
       fprintf (cat (2, '\n %.3g%% credible intervals and Bayes factors', ...
                        ' for linear estimates.\n'), ...
-                       100* (1 - alpha));
+                       100 * (1 - alpha));
       fprintf (cat (2, ' Global ridge prior contribution to posterior ', ... 
                        'precision: %#.2f %%\n'), prior_perc_ridge);
       for j = 1:q
-        fprintf (cat (2, '\n Outcome %d:\n Estimate      CI_lower      ', ...
-                         'CI_upper      lnBF10        Prior\n'), j);
+        fprintf (cat (2, '\n Outcome %d:\n estimate      CI_lower      ', ...
+                         'CI_upper      lnBF10        prior\n'), j);
         for k = 1:c
           fprintf (' %#-+10.4g    %#-+10.4g    %#-+10.4g    %#-+9.3g     %s\n', ...
                   mu(k, j), CI_lower(k, j), CI_upper(k, j), lnBF10(k, j), ...
@@ -1649,7 +1654,7 @@ end
 %!
 %! % Accuracy Check on a random gene
 %! target_gene = ceil (rand * q);
-%! estimated = S.Coefficient(:, target_gene);
+%! estimated = S.coefficient(:, target_gene);
 %! actual = true_beta(:, target_gene);
 %! correlation = corr (estimated, actual);
 %!
@@ -1665,7 +1670,7 @@ end
 %! fprintf ('Correlation of estimates for Gene %d: %.4f\n', ...
 %!          target_gene, correlation);
 %! fprintf ('Number of coefficients: [%s] (Expected: [15 x 2000])\n', ...
-%!           num2str (size (S.Coefficient)));
+%!           num2str (size (S.coefficient)));
 %! fprintf ('Number of pairwise correlations: [%s] (Expected: 1999000)\n', ...
 %!           num2str (size (S.RTAB, 1)));
 %! fprintf ('Positive detections (i.e. discoveries) defined hereon as BF10 > 20');
@@ -1732,14 +1737,14 @@ end
 %!
 %! % 6. Accuracy Check
 %! % Compare estimated Beta (Group Effect) against the Ground Truth Fold-Changes
-%! estimated_fc = S.Coefficient(2, :);
+%! estimated_fc = S.coefficient(2, :);
 %! true_fc = true_beta(2, :);
 %! correlation = corr (estimated_fc', true_fc');
 %!
 %! fprintf ('Correlation of Fold-Changes across %d genes: %.4f\n', ...
 %!          q, correlation);
 %! fprintf ('Number of coefficients: [%s] (Expected: [50 x 15000])\n', ...
-%!           num2str (size (S.Coefficient)));
+%!           num2str (size (S.coefficient)));
 %! fprintf ('Number of pairwise correlations: [%s] (Expected: 112492500)\n', ...
 %!           num2str (size (S.RTAB, 1)));
 
@@ -1767,7 +1772,7 @@ end
 %! kernel = [0.05 0.1 0.4 0.8 1 0.8 0.4 0.1 0.05];        % Smoothing kernel
 %! true_beta = filter (kernel, 1, true_beta_sparse);      % Smooth active voxels
 %!
-%! % 4. Generate Outcome Y (The Stimulus)
+%! % 4. Generate outcome Y (The Stimulus)
 %! % Signal from smoothed clusters + Gaussian noise
 %! Y = X * true_beta + randn (N, q);
 %!
@@ -1799,7 +1804,7 @@ end
 %! runtime = toc;
 %!
 %! % 7. Performance Results
-%! estimated_beta = S.Coefficient;
+%! estimated_beta = S.coefficient;
 %! correlation = corr (estimated_beta, true_beta);
 %! fprintf ('\n--- Performance Results ---\n');
 %! fprintf ('Runtime: %.2f seconds\n', runtime);
@@ -1807,7 +1812,7 @@ end
 %!
 %! fprintf ('Correlation of Voxel Weight Map: %.4f\n', correlation);
 %! fprintf ('Number of coefficients: [%s] (Expected: [8000 x 1])\n', ...
-%!           num2str (size (S.Coefficient)));
+%!           num2str (size (S.coefficient)));
 
 %!test
 %! % Basic functionality: univariate, intercept auto-add, field shapes
@@ -1818,15 +1823,15 @@ end
 %! y = 1.0 + 0.8 * x + 0.1 * randn (m,1);
 %! S = bootridge (y, X, [], 200, 0.05, [], 1.1, 777);
 %! % Check expected fields and sizes
-%! assert (isfield (S, 'Coefficient'));
-%! assert (~ isfield (S, 'Estimate'));
-%! assert (size (S.Coefficient, 2) == 1);
-%! assert (size (S.Coefficient, 1) == 2);     % intercept + slope
+%! assert (isfield (S, 'coefficient'));
+%! assert (~ isfield (S, 'estimate'));
+%! assert (size (S.coefficient, 2) == 1);
+%! assert (size (S.coefficient, 1) == 2);     % intercept + slope
 %! assert (isfinite (S.lambda) && (S.lambda > 0));
 %! assert (isfinite (S.df_lambda) && (S.df_lambda > 0) && ...
 %!         (S.df_lambda <= m));
-%! assert (all (S.CI_lower(:) <= S.Coefficient(:) + eps));
-%! assert (all (S.CI_upper(:) + eps >= S.Coefficient(:)));
+%! assert (all (S.CI_lower(:) <= S.coefficient(:) + eps));
+%! assert (all (S.CI_upper(:) + eps >= S.coefficient(:)));
 %! assert (isfinite (S.Sigma_Y_hat) && (S.Sigma_Y_hat > 0));
 %! assert (iscell (S.Sigma_Beta) && (numel (S.Sigma_Beta) == 1));
 %! assert (all (size (S.Sigma_Beta{1}) == [2, 2]));
@@ -1843,9 +1848,9 @@ end
 %! % Contrast to extract only the slope (second coefficient)
 %! L = [0; 1];
 %! S = bootridge (y, X, [], 100, 0.10, L, 1, 99);
-%! assert (~ isfield (S, 'Coefficient'));
-%! assert (isfield (S, 'Estimate'));
-%! assert (all (size (S.Estimate) == [1, 1]));
+%! assert (~ isfield (S, 'coefficient'));
+%! assert (isfield (S, 'estimate'));
+%! assert (all (size (S.estimate) == [1, 1]));
 %! assert (all (size (S.CI_lower) == [1, 1]));
 %! assert (all (size (S.CI_upper) == [1, 1]));
 %! assert (all (size (S.BF10 ) == [1, 1]));
@@ -1863,12 +1868,12 @@ end
 %! y = X * beta + 0.25 * randn (m, 1);
 %! categor = 2;                  % column 2 is categorical (excludes intercept)
 %! S = bootridge (y, X, categor, 100, 0.05, [], 1, 2024);
-%! assert (isfield (S, 'Coefficient'));
-%! assert (size (S.Coefficient, 1) == 3);
+%! assert (isfield (S, 'coefficient'));
+%! assert (size (S.coefficient, 1) == 3);
 %! assert (isfinite (S.lambda) && (S.lambda > 0));
 %! % Check CI bracketing for all coefficients
-%! assert (all (S.CI_lower(:) <= S.Coefficient(:) + eps));
-%! assert (all (S.CI_upper(:) + eps >= S.Coefficient(:)));
+%! assert (all (S.CI_lower(:) <= S.coefficient(:) + eps));
+%! assert (all (S.CI_upper(:) + eps >= S.coefficient(:)));
 
 %!test
 %! % Multivariate outcomes and Deff scaling: Sigma_Y_hat should scale by Deff

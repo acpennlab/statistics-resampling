@@ -253,7 +253,9 @@
 %                    is ideal for predictor variables that are either ordinal,
 %                    or nominal with their levels ordered such that the contrast
 %                    coding reflects tests of some hypotheses of interest about
-%                    the nested grouping of the predictor levels.
+%                    the nested grouping of the predictor levels. Note that the
+%                    the one-level predictor is the reference and is subtracted
+%                    from from the mean of the subsequent predictor levels.
 %
 %                  o 'effect': Deviation effect coding. The intercept represents
 %                    the grand mean. Each slope coefficient compares one level
@@ -1824,9 +1826,9 @@ function C = contr_helmert (N)
 
   % Create contrast matrix (of doubles) using Helmert coding contrasts
   % These contrasts are orthogonal and centered (i.e. sum to 0)
-  C = bsxfun (@rdivide, ...
-             cat (1, diag ((N - 1):-1:1) + tril (-ones (N - 1), - 1), ...
-                     -ones(1, N-1)), N:-1:2);
+  C = - bsxfun (@rdivide, ...
+                cat (1, diag ((N - 1):-1:1) + tril (-ones (N - 1), - 1), ...
+                       -ones(1, N-1)), N:-1:2);
 
 end
 

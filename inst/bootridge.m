@@ -551,11 +551,19 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   % Get dimensions of the data
   [m, n] = size (X);
   q = size (Y, 2);
+  % Check that Y contains floating point numbers
+  if (~ any (strcmpi (class (Y), {'single', 'double'})))
+    error ('bootwild: Y must contain single or double precision numbers.');
+  end
 
   % Check that the first column is X are all equal to 1, if not create one
   if ( ~all (X(:, 1) == 1) )
     X = cat (2, ones (m, 1), X);
     n = n + 1;
+  end
+  % Check that X contains floating point numbers
+  if (~ any (strcmpi (class (X), {'single', 'double'})))
+    error ('bootwild: X must contain single or double precision numbers.');
   end
 
   % If categor is not provided, set it to empty
@@ -629,7 +637,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     seed = 1;
   else
     if ( isinf (seed) || isnan (seed) || (numel (seed) > 1) || ...
-         seed ~= fix(seed))
+         seed ~= fix (seed))
       error ('bootridge: The seed must be a finite integer');
     end
   end
@@ -1407,6 +1415,19 @@ function fx = lambda_eval (x, i, c, fxc, parsubfun)
 end
 
 %-------------------------------------------------------------------------------
+
+%!demo
+%!
+%! % Analysis of Rohwer's dataset
+%! [group, SES, SAT, PPVT, Raven, n, s, ns, na, ss] = ...
+%!      textread ('./rohwer_data.csv', '%f %s %f %f %f %f %f %f %f %f', ...
+%!                'Delimiter', ',', 'HeaderLines', 1);
+%! MAT = bootlm (SAT, {SES, n, s, ns, na, ss}, 'model', 'linear', ...
+%!                     'nboot', 0, 'display', 'off', 'continuous', [2:6], ...
+%!                     'contrasts', 'helmert');
+%! 
+%! % Analysis using bootridge
+%! bootridge([SAT, PPVT, Raven], MAT.X, 2, 1999, .05);
 
 %!demo
 %!

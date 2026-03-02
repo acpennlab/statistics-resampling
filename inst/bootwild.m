@@ -164,7 +164,7 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
     end
   end
 
-  % Calculate the length of y
+  % Calculate the length and datatype of y
   if (nargin < 1)
     error ('bootwild: DATA must be provided')
   end
@@ -173,12 +173,20 @@ function [stats, bootstat, bootsse, bootfit, Y] = bootwild (y, X, ...
     error ('bootwild: y must be a column vector')
   end
   n = numel (y);
+  % Check that y contains floating point numbers
+  if (~ any (strcmpi (class (y), {'single', 'double'})))
+    error ('bootwild: y must contain single or double precision numbers.');
+  end
 
   % Evaluate the design matrix
   if ( (nargin < 2) || (isempty (X)) )
     X = ones (n, 1);
   elseif (size (X, 1) ~= n)
     error ('bootwild: X must have the same number of rows as y')
+  end
+  % Check that X contains floating point numbers
+  if (~ any (strcmpi (class (X), {'single', 'double'})))
+    error ('bootwild: X must contain single or double precision numbers.');
   end
 
   % Remove rows of the data whose outcome or value of any predictor is NaN or Inf

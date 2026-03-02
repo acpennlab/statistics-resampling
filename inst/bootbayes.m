@@ -197,12 +197,20 @@ function [stats, bootstat] = bootbayes (Y, X, dep, nboot, prob, prior, seed, ...
     error ('bootbayes: DATA must be provided')
   end
   [n, q] = size (Y);
+  % Check that Y contains floating point numbers
+  if (~ any (strcmpi (class (Y), {'single', 'double'})))
+    error ('bootwild: Y must contain single or double precision numbers.');
+  end
 
   % Evaluate the design matrix
   if ( (nargin < 2) || (isempty (X)) )
     X = ones (n, 1);
   elseif (size (X, 1) ~= n)
     error ('bootbayes: X must have the same number of rows as y')
+  end
+  % Check that Y contains floating point numbers
+  if (~ any (strcmpi (class (X), {'single', 'double'})))
+    error ('bootwild: Y must contain single or double precision numbers.');
   end
 
   % Remove rows of the data whose outcome or value of any predictor is NaN or Inf

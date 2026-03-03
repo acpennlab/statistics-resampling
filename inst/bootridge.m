@@ -996,6 +996,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
                      '*************************************************\n'));
     fprintf ('\n Number of predictors (p): %d\n', p);
     fprintf ('\n Number of outcomes (q): %d\n', q);
+    fprintf ('\n Sample size: %d\n', m);
     fprintf ('\n Design effect (Deff): %.3g\n', deff);
     fprintf('\n Bootstrap resamples (nboot): %d\n', nboot);
     fprintf('\n Minimized .632 bootstrap prediction error: %.6g\n', pred_err);

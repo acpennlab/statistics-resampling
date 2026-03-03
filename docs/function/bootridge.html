@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
   <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-  <meta name="date" content="2026-02-18"/>
+  <meta name="date" content="2026-03-02"/>
   <meta name="generator" content="generate_html 0.3.3" />
   <meta name="author" content="Andrew Penn" />
   <meta name="description" content="A package for statistical analysis using resampling methods." />
@@ -172,24 +172,24 @@
       The output S is a structure containing the following fields (listed in
       order of appearance):
 
-        o Coefficient
+        o coefficient
             n-by-q matrix of posterior mean regression coefficients for each
             outcome when no hypothesis matrix L is specified.
 
-        o Estimate
+        o estimate
             c-by-q matrix of posterior mean linear estimates when a hypothesis
             matrix L is specified. This field is returned instead of
-            'Coefficient' when L is non-empty.
+            'coefficient' when L is non-empty.
 
         o CI_lower
             Matrix of lower bounds of the (1 - ALPHA) credibility intervals
             for coefficients or linear estimates. Dimensions match those of
-            'Coefficient' or 'Estimate'.
+            'coefficient' or 'estimate'.
 
         o CI_upper
             Matrix of upper bounds of the (1 - ALPHA) credibility intervals
             for coefficients or linear estimates. Dimensions match those of
-            'Coefficient' or 'Estimate'.
+            'coefficient' or 'estimate'.
 
         o BF10
             Matrix of Bayes factors (BF10) for testing whether each regression
@@ -261,12 +261,12 @@
             remained consistent across max(nboot,1999) bootstrap resamples [6].
             Raw probabilities are smoothed using a Jeffreys prior and, if
             applicable, adjusted by the design effect (Deff). In the printed
-            summary, stability exceeding (1 - ALPHA) is indicated by (+) or (-)
-            to denote the consistent direction of the effect.
+            summary, stability exceeding (1 - ALPHA / 2) is indicated by (+)
+            or (-) to denote the consistent direction of the effect.
 
         o RTAB
             Matrix summarizing residual correlations (strictly lower-
-            triangular pairs). The columns correspond to Outcome J, Outcome I, 
+            triangular pairs). The columns correspond to outcome J, outcome I, 
             and the coefficient and credible intervals for their correlation.
 
             Credible intervals for correlations are computed on Fisher’s z
@@ -296,7 +296,8 @@
       effects are shrunken toward zero, while stable effects survive the 
       penalty. This "Partial Pooling" ensures that Bayes factors are 
       appropriately conservative without the catastrophic loss of power 
-      associated with classical post-hoc adjustments [8, 9].
+      associated with classical post-hoc adjustments [8, 9]. See later section
+      on STATISTICAL INFERENCE AND ERROR CONTROL.
 
       PREDICTIVE OPTIMIZATION:
       The ridge tuning constant (hyperparameter) is selected empirically by
@@ -465,6 +466,26 @@
       credibility intervals, and prior standard deviations are reported 
       directly on the original coefficient scale for ease of interpretation.
 
+      STATISTICAL INFERENCE AND ERROR CONTROL:
+      Inference is provided via three complementary metrics: Credibility
+      Intervals (CI), Bayes Factors (BF), and Stability Selection (SS)
+      probabilities. Conditioned on a bootstrap-optimized ridge penalty, these
+      statistics exhibit superior control over Type M (magnitude) and Type S
+      (sign) errors relative to unpenalized estimators. The inherent shrinkage
+      provides implicit False Discovery Rate (FDR) control for CIs and BFs by
+      suppressing noise-driven inflation, providing more conservative global
+      error control than unpenalized methods. Conversely, SS probabilities
+      prioritize statistical power in sparse or low signal-to-noise ratio (SNR)
+      settings; while SS maintains marginal False Positive Rate (FPR) control
+      near ALPHA, it lacks the intrinsic FDR protection afforded by shrinkage
+      when interpreting multiple simultaneous inferences. The reliability of
+      all metrics improves as the Signal-to-Noise Ratio (SNR) increases. 
+
+                           CI           BF           SS   
+           FDR-Controlled <----------------------------> FPR-Controlled
+        (High Stringency)                                (High Discovery) 
+
+
       See also: `bootstrp`, `boot`, `bootlm`, `bootbayes` and `bootwild`.
 
   Bibliography:
@@ -531,6 +552,125 @@
 <p>The following code</p>
 <pre class="example">
 
+ % Analysis of Rohwer's dataset
+ % Data from an experiment by William D. Rohwer on kindergarten children
+ % designed to examine how well performance on a set of paired-associate (PA)
+ % tasks can predict performance on some measures of aptitude and achievement.
+
+ % Load the dataset
+ [group, SES, SAT, PPVT, Raven, n, s, ns, na, ss] = textread ...
+                 ('rohwer_data.csv', '%f %s %f %f %f %f %f %f %f %f', ...
+                  'Delimiter', ',', 'HeaderLines', 1);
+ % Define model terms - all main effects and two-way interactions with SES
+ mdl = [1 0 0 0 0 0; ...
+        0 1 0 0 0 0; ...
+        0 0 1 0 0 0; ...
+        0 0 0 1 0 0; ...
+        0 0 0 0 1 0; ...
+        0 0 0 0 0 1; ...
+        1 1 0 0 0 0; ...
+        1 0 1 0 0 0; ...
+        1 0 0 1 0 0; ...
+        1 0 0 0 1 0; ...
+        1 0 0 0 0 1];
+
+  % Fit linear model with one of the outcomes to obtain design matrix
+  MAT = bootlm (SAT, {SES, n, s, ns, na, ss}, 'model', 'linear', ...
+                'nboot', 0, 'display', 'off', 'continuous', [2:6], ...
+                'contrasts', 'simple', 'model', mdl);
+
+ % Run machine learning optimized ridge regression with empirical bayes
+ % inference. By not assigning the output to a variable, we get results
+ % printed to stdout.
+ bootridge ([SAT, PPVT, Raven], MAT.X, 2, 200, .05);
+ 
+ % Get the output structure stored in ans from the last function call 
+ S = ans;</pre>
+<p>Produces the following output</p>
+<pre class="example">Empirical Bayes Ridge Regression (.632 Bootstrap Tuning) - Summary
+ *******************************************************************************
+
+ Number of outcomes (q): 3
+
+ Design effect (Deff): 1
+
+ Bootstrap resamples (nboot): 200
+
+ Minimized .632 bootstrap prediction error: 2.07996
+
+ Bootstrap optimized ridge tuning constant (lambda): 7.25059
+
+ Effective residual degrees of freedom (df_lambda): 59.3
+
+ Residual variances (range): [7.68, 564]
+
+ Inferential degrees of freedom (df_t): 59.3
+ Used for credible intervals and Bayes factors below.
+
+ 95% credible intervals for correlations between outcomes:
+ (Prior on Fisher's z is flat/improper)
+
+ Outcome J     Outcome I     correlation   CI_lower      CI_upper     
+ 1             2             +0.2149       -0.04599      +0.4484  
+ 1             3             +0.2957       +0.04040      +0.5147  
+ 2             3             +0.2968       +0.04166      +0.5156  
+
+ 95% credible intervals and Bayes factors for regression coefficients.
+ Global ridge prior contribution to posterior precision: 20.77 %
+ Stability selection (SS): >97.5% for the (-) or (+) sign of the coefficient.
+ SS probabilities are reported in S.stability
+
+ Outcome 1:
+ coefficient   CI_lower      CI_upper      lnBF10    SS  prior
+ +37.87        +31.77        +43.98        +NaN          U (-Inf, Inf)
+ +6.490        -3.554        +16.53        +0.275        t (0, 8.82, 59.3)
+ +1.185        -0.7453       +3.115        -0.129        t (0, 2.34, 59.3)
+ +1.113        -0.4437       +2.670        +0.0729       t (0, 2.01, 59.3)
+ -2.441        -3.920        -0.9626       +4.31     (-) t (0, 1.61, 59.3)
+ +2.127        +0.7229       +3.531        +3.64     (+) t (0, 1.42, 59.3)
+ +0.8202       -0.5386       +2.179        -0.0338       t (0, 1.46, 59.3)
+ +2.592        -1.316        +6.500        -0.0302       t (0, 4.87, 59.3)
+ +2.241        -0.8743       +5.356        +0.0852       t (0, 4.03, 59.3)
+ -2.339        -5.306        +0.6272       +0.460        t (0, 3.23, 59.3)
+ +3.362        +0.5435       +6.179        +2.05     (+) t (0, 2.87, 59.3)
+ -1.699        -4.450        +1.053        -0.0223       t (0, 3.02, 59.3)
+
+ Outcome 2:
+ coefficient   CI_lower      CI_upper      lnBF10    SS  prior
+ +72.38        +69.54        +75.21        +NaN          U (-Inf, Inf)
+ +11.51        +6.840        +16.17        +9.81     (+) t (0, 4.10, 59.3)
+ +0.2438       -0.6527       +1.140        -0.736        t (0, 1.09, 59.3)
+ -0.1094       -0.8324       +0.6136       -0.903        t (0, 0.934, 59.3)
+ -0.1821       -0.8689       +0.5047       -0.636        t (0, 0.748, 59.3)
+ +1.126        +0.4736       +1.778        +4.82     (+) t (0, 0.658, 59.3)
+ +0.5167       -0.1144       +1.148        +0.568        t (0, 0.679, 59.3)
+ -0.1079       -1.923        +1.707        -0.905        t (0, 2.26, 59.3)
+ +0.7991       -0.6477       +2.246        -0.335        t (0, 1.87, 59.3)
+ +0.006221     -1.372        +1.384        -0.780        t (0, 1.50, 59.3)
+ +0.09108      -1.218        +1.400        -0.701        t (0, 1.33, 59.3)
+ +0.1488       -1.129        +1.427        -0.761        t (0, 1.40, 59.3)
+
+ Outcome 3:
+ coefficient   CI_lower      CI_upper      lnBF10    SS  prior
+ +14.20        +13.48        +14.91        +NaN          U (-Inf, Inf)
+ +1.049        -0.1227       +2.221        +1.03     (+) t (0, 1.03, 59.3)
+ +0.1118       -0.1134       +0.3371       -0.389        t (0, 0.273, 59.3)
+ +0.2157       +0.03400      +0.3973       +1.79     (+) t (0, 0.235, 59.3)
+ +0.03120      -0.1414       +0.2038       -0.712        t (0, 0.188, 59.3)
+ +0.02972      -0.1341       +0.1935       -0.636        t (0, 0.165, 59.3)
+ -0.03604      -0.1946       +0.1225       -0.662        t (0, 0.171, 59.3)
+ -0.1310       -0.5871       +0.3251       -0.745        t (0, 0.568, 59.3)
+ +0.3330       -0.03056      +0.6965       +0.711    (+) t (0, 0.470, 59.3)
+ -0.2740       -0.6202       +0.07219      +0.469        t (0, 0.377, 59.3)
+ +0.09246      -0.2364       +0.4213       -0.551        t (0, 0.335, 59.3)
+ -0.04850      -0.3696       +0.2726       -0.742        t (0, 0.353, 59.3)</pre>
+</div>
+
+<h3><a name="2">Demonstration 2</a></h3>
+<div class="demo">
+<p>The following code</p>
+<pre class="example">
+
  % Simple linear regression. The data represents salaries of employees and
  % their years of experience, modified from Allena Venkata. The salaries are
  % in units of 1000 dollars per annum.
@@ -568,15 +708,16 @@
 
  95% credible intervals and Bayes factors for regression coefficients.
  Global ridge prior contribution to posterior precision: 0.26 %
- Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
+ Stability selection (SS): >97.5% for the (-) or (+) sign of the coefficient.
+ SS probabilities are reported in S.stability
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
+ coefficient   CI_lower      CI_upper      lnBF10    SS  prior
  +24.92        +20.25        +29.59        +NaN          U (-Inf, Inf)
  +9.430        +8.663        +10.20        +42.9     (+) t (0, 7.29, 28.0)</pre>
 </div>
 
-<h3><a name="2">Demonstration 2</a></h3>
+<h3><a name="3">Demonstration 3</a></h3>
 <div class="demo">
 <p>The following code</p>
 <pre class="example">
@@ -620,10 +761,11 @@
 
  95% credible intervals and Bayes factors for regression coefficients.
  Global ridge prior contribution to posterior precision: 48.66 %
- Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
+ Stability selection (SS): >97.5% for the (-) or (+) sign of the coefficient.
+ SS probabilities are reported in S.stability
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
+ coefficient   CI_lower      CI_upper      lnBF10    SS  prior
  +49.84        +39.83        +59.85        +NaN          U (-Inf, Inf)
  +5.545        -8.834        +19.92        +0.0384       t (0, 9.18, 9.49)
 
@@ -652,12 +794,12 @@
  Global ridge prior contribution to posterior precision: 48.66 %
 
  Outcome 1:
- Estimate      CI_lower      CI_upper      lnBF10        Prior
+ estimate      CI_lower      CI_upper      lnBF10        prior
  +47.07        +34.36        +59.77        +NaN          U (-Inf, Inf)
  +52.61        +40.67        +64.55        +NaN          U (-Inf, Inf)</pre>
 </div>
 
-<h3><a name="3">Demonstration 3</a></h3>
+<h3><a name="4">Demonstration 4</a></h3>
 <div class="demo">
 <p>The following code</p>
 <pre class="example">
@@ -718,7 +860,7 @@
  Global ridge prior contribution to posterior precision: 0.82 %
 
  Outcome 1:
- Estimate      CI_lower      CI_upper      lnBF10        Prior
+ estimate      CI_lower      CI_upper      lnBF10        prior
  +1.994        +1.258        +2.731        +6.86         t (0, 6.58, 18.1)
  +3.191        +2.455        +3.927        +13.5         t (0, 6.58, 18.1)
 
@@ -747,13 +889,13 @@
  Global ridge prior contribution to posterior precision: 0.82 %
 
  Outcome 1:
- Estimate      CI_lower      CI_upper      lnBF10        Prior
+ estimate      CI_lower      CI_upper      lnBF10        prior
  +11.00        +10.48        +11.53        +NaN          U (-Inf, Inf)
  +13.00        +12.48        +13.52        +NaN          U (-Inf, Inf)
  +14.20        +13.67        +14.72        +NaN          U (-Inf, Inf)</pre>
 </div>
 
-<h3><a name="4">Demonstration 4</a></h3>
+<h3><a name="5">Demonstration 5</a></h3>
 <div class="demo">
 <p>The following code</p>
 <pre class="example">
@@ -804,16 +946,17 @@
 
  95% credible intervals and Bayes factors for regression coefficients.
  Global ridge prior contribution to posterior precision: 0.33 %
- Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
+ Stability selection (SS): >97.5% for the (-) or (+) sign of the coefficient.
+ SS probabilities are reported in S.stability
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
+ coefficient   CI_lower      CI_upper      lnBF10    SS  prior
  +73.37        +72.71        +74.03        +NaN          U (-Inf, Inf)
  +3.601        +3.402        +3.800        +53.4     (+) t (0, 2.65, 28.0)
  -10.03        -11.53        -8.528        +26.9     (-) t (0, 10.1, 28.0)</pre>
 </div>
 
-<h3><a name="5">Demonstration 5</a></h3>
+<h3><a name="6">Demonstration 6</a></h3>
 <div class="demo">
 <p>The following code</p>
 <pre class="example">
@@ -888,10 +1031,11 @@
 
  95% credible intervals and Bayes factors for regression coefficients.
  Global ridge prior contribution to posterior precision: 8.86 %
- Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
+ Stability selection (SS): >97.5% for the (-) or (+) sign of the coefficient.
+ SS probabilities are reported in S.stability
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
+ coefficient   CI_lower      CI_upper      lnBF10    SS  prior
  +0.6492       +0.6238       +0.6746       +NaN          U (-Inf, Inf)
  -0.07454      -0.1241       -0.02501      +2.69     (-) t (0, 0.108, 20.3)
  -0.1189       -0.1685       -0.06942      +7.04     (-) t (0, 0.108, 20.3)
@@ -920,10 +1064,11 @@
 
  95% credible intervals and Bayes factors for regression coefficients.
  Global ridge prior contribution to posterior precision: 40.29 %
- Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
+ Stability selection (SS): >97.5% for the (-) or (+) sign of the coefficient.
+ SS probabilities are reported in S.stability
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
+ coefficient   CI_lower      CI_upper      lnBF10    SS  prior
  +0.6492       +0.6209       +0.6774       +NaN          U (-Inf, Inf)
  +0.03475      -0.04703      +0.1165       +0.0470       t (0, 0.0561, 15.2)
  -0.007114     -0.08890      +0.07467      -0.359        t (0, 0.0561, 15.2)
@@ -941,7 +1086,7 @@
  +0.07209      -0.009930     +0.1541       +1.30     (+) t (0, 0.0561, 15.2)</pre>
 </div>
 
-<h3><a name="6">Demonstration 6</a></h3>
+<h3><a name="7">Demonstration 7</a></h3>
 <div class="demo">
 <p>The following code</p>
 <pre class="example">
@@ -1031,7 +1176,7 @@
  Global ridge prior contribution to posterior precision: 6.50 %
 
  Outcome 1:
- Estimate      CI_lower      CI_upper      lnBF10        Prior
+ estimate      CI_lower      CI_upper      lnBF10        prior
  -6.336        -12.21        -0.4634       +1.03         t (0, 11.2, 13.6)
  -12.82        -18.69        -6.947        +5.63         t (0, 11.2, 13.6)
  -6.483        -12.32        -0.6518       +1.26         t (0, 9.99, 13.6)
@@ -1061,13 +1206,13 @@
  Global ridge prior contribution to posterior precision: 2.47 %
 
  Outcome 1:
- Estimate      CI_lower      CI_upper      lnBF10        Prior
+ estimate      CI_lower      CI_upper      lnBF10        prior
  -6.532        -21.08        +8.017        -0.871        t (0, 30.7, 3.05)
  -13.33        -27.88        +1.214        +0.776        t (0, 30.7, 3.05)
  -6.802        -21.31        +7.708        -0.691        t (0, 27.4, 3.05)</pre>
 </div>
 
-<h3><a name="7">Demonstration 7</a></h3>
+<h3><a name="8">Demonstration 8</a></h3>
 <div class="demo">
 <p>The following code</p>
 <pre class="example">
@@ -1105,15 +1250,16 @@
 
  95% credible intervals and Bayes factors for regression coefficients.
  Global ridge prior contribution to posterior precision: 1.57 %
- Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
+ Stability selection (SS): >97.5% for the (-) or (+) sign of the coefficient.
+ SS probabilities are reported in S.stability
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
+ coefficient   CI_lower      CI_upper      lnBF10    SS  prior
  +1.988        +1.926        +2.050        +NaN          U (-Inf, Inf)
  +0.4748       +0.3715       +0.5782       +21.1     (+) t (0, 0.408, 38.0)</pre>
 </div>
 
-<h3><a name="8">Demonstration 8</a></h3>
+<h3><a name="9">Demonstration 9</a></h3>
 <div class="demo">
 <p>The following code</p>
 <pre class="example">
@@ -1154,25 +1300,26 @@
  90% credible intervals for correlations between outcomes:
  (Prior on Fisher's z is flat/improper)
 
- Outcome J     Outcome I     Correlation   CI_lower      CI_upper     
- 1             2             -0.07093      -0.3627       +0.2335  
+ Outcome J     Outcome I     correlation   CI_lower      CI_upper     
+ 1             2             -0.07093      -0.3583       +0.2287  
 
  90% credible intervals and Bayes factors for regression coefficients.
  Global ridge prior contribution to posterior precision: 1.69 %
- Stability selection (SS): >90% for the (-) or (+) sign of the coefficient.
+ Stability selection (SS): >95% for the (-) or (+) sign of the coefficient.
+ SS probabilities are reported in S.stability
 
  Outcome 1:
- Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
+ coefficient   CI_lower      CI_upper      lnBF10    SS  prior
  +1.482        +1.415        +1.548        +NaN          U (-Inf, Inf)
  +0.5697       +0.5144       +0.6250       +37.5     (+) t (0, 0.251, 33.0)
 
  Outcome 2:
- Coefficient   CI_lower      CI_upper      lnBF10    SS  Prior
+ coefficient   CI_lower      CI_upper      lnBF10    SS  prior
  +2.031        +1.952        +2.111        +NaN          U (-Inf, Inf)
  -0.2938       -0.3599       -0.2277       +14.9     (-) t (0, 0.300, 33.0)</pre>
 </div>
 
-<h3><a name="9">Demonstration 9</a></h3>
+<h3><a name="10">Demonstration 10</a></h3>
 <div class="demo">
 <p>The following code</p>
 <pre class="example">
@@ -1231,7 +1378,7 @@
 
  % Accuracy Check on a random gene
  target_gene = ceil (rand * q);
- estimated = S.Coefficient(:, target_gene);
+ estimated = S.coefficient(:, target_gene);
  actual = true_beta(:, target_gene);
  correlation = corr (estimated, actual);
 
@@ -1247,7 +1394,7 @@
  fprintf ('Correlation of estimates for Gene %d: %.4f\n', ...
           target_gene, correlation);
  fprintf ('Number of coefficients: [%s] (Expected: [15 x 2000])\n', ...
-           num2str (size (S.Coefficient)));
+           num2str (size (S.coefficient)));
  fprintf ('Number of pairwise correlations: [%s] (Expected: 1999000)\n', ...
            num2str (size (S.RTAB, 1)));
  fprintf ('Positive detections (i.e. discoveries) defined hereon as BF10 > 20');
@@ -1259,7 +1406,7 @@
 Running bootridge ...
 
 --- Performance Results ---
-Runtime: 909.79 seconds
+Runtime: 893.47 seconds
 Optimized Lambda: 65.132264
 Total Iterations: 12
 Correlation of estimates for Gene 158: 0.9952
@@ -1271,7 +1418,7 @@ Precision (i.e. 1-FDR): 98.9%
 Power (i.e. TPR): 94.8%</pre>
 </div>
 
-<h3><a name="10">Demonstration 10</a></h3>
+<h3><a name="11">Demonstration 11</a></h3>
 <div class="demo">
 <p>The following code</p>
 <pre class="example">
@@ -1333,14 +1480,14 @@ Power (i.e. TPR): 94.8%</pre>
 
  % 6. Accuracy Check
  % Compare estimated Beta (Group Effect) against the Ground Truth Fold-Changes
- estimated_fc = S.Coefficient(2, :);
+ estimated_fc = S.coefficient(2, :);
  true_fc = true_beta(2, :);
  correlation = corr (estimated_fc', true_fc');
 
  fprintf ('Correlation of Fold-Changes across %d genes: %.4f\n', ...
           q, correlation);
  fprintf ('Number of coefficients: [%s] (Expected: [50 x 15000])\n', ...
-           num2str (size (S.Coefficient)));
+           num2str (size (S.coefficient)));
  fprintf ('Number of pairwise correlations: [%s] (Expected: 112492500)\n', ...
            num2str (size (S.RTAB, 1)));</pre>
 <p>Produces the following output</p>
@@ -1348,14 +1495,14 @@ Power (i.e. TPR): 94.8%</pre>
 Running Multivariate bootridge (Shrinkage shared across genes)...
 
 --- Performance Results ---
-Runtime: 498.68 seconds
+Runtime: 472.76 seconds
 Optimized Lambda: 510.212731
 Correlation of Fold-Changes across 15000 genes: 0.9759
 Number of coefficients: [50  15000] (Expected: [50 x 15000])
 Number of pairwise correlations: [112492500] (Expected: 112492500)</pre>
 </div>
 
-<h3><a name="11">Demonstration 11</a></h3>
+<h3><a name="12">Demonstration 12</a></h3>
 <div class="demo">
 <p>The following code</p>
 <pre class="example">
@@ -1382,7 +1529,7 @@ Number of pairwise correlations: [112492500] (Expected: 112492500)</pre>
  kernel = [0.05 0.1 0.4 0.8 1 0.8 0.4 0.1 0.05];        % Smoothing kernel
  true_beta = filter (kernel, 1, true_beta_sparse);      % Smooth active voxels
 
- % 4. Generate Outcome Y (The Stimulus)
+ % 4. Generate outcome Y (The Stimulus)
  % Signal from smoothed clusters + Gaussian noise
  Y = X * true_beta + randn (N, q);
 
@@ -1414,7 +1561,7 @@ Number of pairwise correlations: [112492500] (Expected: 112492500)</pre>
  runtime = toc;
 
  % 7. Performance Results
- estimated_beta = S.Coefficient;
+ estimated_beta = S.coefficient;
  correlation = corr (estimated_beta, true_beta);
  fprintf ('\n--- Performance Results ---\n');
  fprintf ('Runtime: %.2f seconds\n', runtime);
@@ -1422,7 +1569,7 @@ Number of pairwise correlations: [112492500] (Expected: 112492500)</pre>
 
  fprintf ('Correlation of Voxel Weight Map: %.4f\n', correlation);
  fprintf ('Number of coefficients: [%s] (Expected: [8000 x 1])\n', ...
-           num2str (size (S.Coefficient)));</pre>
+           num2str (size (S.coefficient)));</pre>
 <p>Produces the following output</p>
 <pre class="example">Simulating fMRI Encoding: 500 timepoints, 8000 voxels...
 Estimated Design Effect (Deff): 3.489
@@ -1430,7 +1577,7 @@ Running bootridge (Global Lambda Optimization)...
 Note: t-statistics evaluated with effective degrees of freedom clamped at 1 degree of freedom.
 
 --- Performance Results ---
-Runtime: 1493.30 seconds
+Runtime: 1424.13 seconds
 Optimized Lambda: 0.326447
 Correlation of Voxel Weight Map: 0.3970
 Number of coefficients: [8000     1] (Expected: [8000 x 1])</pre>

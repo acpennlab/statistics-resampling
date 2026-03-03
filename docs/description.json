@@ -1,7 +1,7 @@
 {
   "generator": "generate_html",
   "generator_version": "0.3.3",
-  "date_generated": "2026-02-18",
+  "date_generated": "2026-03-02",
   "package": 
   {
     "name": "statistics-resampling",

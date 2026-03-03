@@ -2001,7 +2001,7 @@ end
 %!           if dec_r_ci(sig_idx, j)
 %!             sig_hits_r = sig_hits_r + 1;
 %!             if sign(S_r.coefficient(2,j)) ~= sign(snr)
-%!               type_s_r = type_s_r + 1
+%!               type_s_r = type_s_r + 1;
 %!             end
 %!             type_m_r = type_m_r + (abs(S_r.coefficient(2,j)) / abs(snr));
 %!           end

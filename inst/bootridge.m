@@ -552,7 +552,6 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
 
   % Get dimensions of the data
   [m, n] = size (X);
-  p = n - 1;
   q = size (Y, 2);
   % Check that Y contains floating point numbers
   if (~ any (strcmpi (class (Y), {'single', 'double'})))
@@ -564,6 +563,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     X = cat (2, ones (m, 1), X);
     n = n + 1;
   end
+  p = n - 1;
   % Check that X contains floating point numbers
   if (~ any (strcmpi (class (X), {'single', 'double'})))
     error ('bootwild: X must contain single or double precision numbers.');
@@ -1453,10 +1453,12 @@ end
 %! % Run machine learning optimized ridge regression with empirical bayes
 %! % inference. By not assigning the output to a variable, we get results
 %! % printed to stdout.
+%! fprintf ('The bootridge function is running ...\n')
 %! bootridge ([SAT, PPVT, Raven], MAT.X, 2, 200, .05);
 %! 
 %! % Get the output structure stored in ans from the last function call 
 %! S = ans;
+%!
 
 %!demo
 %!
@@ -1470,6 +1472,7 @@ end
 %! salary = [39 46 38 44 40 57 60 54 64 57 63 56 57 57 61 68 66 83 81 94 92 ...
 %!           98 101 114 109 106 117 113 122 122]';
 %!
+%! fprintf ('The bootridge function is running ...\n')
 %! bootridge (salary, years);
 %! 
 %! % We can see from the intercept that the starting starting salary is $25.2 K
@@ -1488,10 +1491,12 @@ end
 %! % coding to simple contrasts, which are centered.
 %! MAT  = bootlm (score, gender, 'nboot', 0, 'display', 'off', ...
 %!                'dim', 1, 'posthoc', 'trt_vs_ctrl');
+%! fprintf ('The bootridge function is running ...\n')
 %! bootridge (MAT.Y, MAT.X, 2);
 %!
 %! % Group means
 %! MAT  = bootlm (score, gender, 'nboot', 0, 'display', 'off', 'dim', 1);
+%! fprintf ('The bootridge function is running ...\n')
 %! bootridge (MAT.Y, MAT.X, 2, [], [], MAT.L);
 
 %!demo
@@ -1516,6 +1521,7 @@ end
 %!                  'poly', 'dim', 2, 'posthoc', 'trt_vs_ctrl', 'nboot', 0);
 %!
 %! % Ridge regression and bayesian analysis of posthoc comparisons
+%! fprintf ('The bootridge function is running ...\n')
 %! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L);
 %!
 %! % Frequentist framework: wild bootstrap of linear model, with orthogonal
@@ -1526,6 +1532,7 @@ end
 %! % Ridge regression and bayesian analysis of model estimates. Note that group-
 %! % mean Bayes Factors are NaN under the flat prior on the intercept whereas
 %! % the contrasts we just calculated had proper Normal priors.
+%! fprintf ('The bootridge function is running ...\n')
 %! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L);
 
 %!demo
@@ -1552,6 +1559,7 @@ end
 %! % Ridge regression and bayesian analysis of regression coefficients
 %! % MAT.X: column 1 is intercept, column 2 is temp (continuous), column 3 
 %! % is species (categorical).
+%! fprintf ('The bootridge function is running ...\n')
 %! bootridge (MAT.Y, MAT.X, 3, 200, 0.05);
 
 %!demo
@@ -1589,6 +1597,7 @@ end
 %! % Ridge regression and bayesian analysis of regression coefficients
 %! % MAT.X: column 1 is intercept, column 2 is temp (continuous), column 3 
 %! % is species (categorical).
+%! fprintf ('The bootridge function is running ...\n')
 %! bootridge (MAT.Y, MAT.X, '*', 200, 0.05);
 %!
 %! % Now imagine the design is repeated stimulus measurements in each rodent
@@ -1602,6 +1611,7 @@ end
 %! % Ridge regression and bayesian analysis of regression coefficients
 %! % MAT.X: column 1 is intercept, column 2 is temp (continuous), column 3 
 %! % is species (categorical).
+%! fprintf ('The bootridge function is running ...\n')
 %! bootridge (MAT.Y, MAT.X, '*', 200, 0.05);
 
 %!demo
@@ -1655,10 +1665,12 @@ end
 %!
 %! % Fit a cluster-robust empirical Bayes model using our bootstrap estimate of
 %! % the design effect and using the hypothesis matrix to define the comparisons
+%! fprintf ('The bootridge function is running ...\n')
 %! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L, DEFF);
 %!
 %! % Compare this to using a maximum cluster size as an upperbound for Deff
 %! g = max (accumarray (clustid(:), 1, [], @sum));  % g is max. cluster size
+%! fprintf ('The bootridge function is running ...\n')
 %! bootridge (MAT.Y, MAT.X, '*', 200, 0.05, MAT.L, g); % Upperbound DEFF is g
 %!
 %! % Note: Using the empirical DEFF (~1.5) instead of the upper-bound (4.0) 

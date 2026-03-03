@@ -1884,146 +1884,141 @@ end
 %!demo
 %! 
 %! %  Error Control: Global Ridge vs Per-Outcome Wild Bootstrap (n = 40)
-%! %                 under global multicollinearity (r = 0.2)
-%!
-%! % --- Parameters ---
-%! n_sims   = 30;       
-%! alpha    = 0.05;     
-%! n_vals   = 40;      
-%! p_vals   = [3, 10, 30]; 
-%! q_vals   = [1, 5, 10];   
-%! snr_vals = [0.1, 0.2, 0.4, 0.8]; 
-%! seed     = 42; 
-%! randn('seed', seed);
-%! 
-%! for p = p_vals
-%!   for q = q_vals
-%!     for snr = snr_vals
-%!       % Accumulators
-%!       fpr_r_ci = 0; fpr_r_bf = 0; fpr_r_ss = 0;
-%!       fpr_w_std = 0; fpr_w_max = 0;
-%!       fdr_r_ci = 0; fdr_r_bf = 0; fdr_r_ss = 0;
-%!       fdr_w_std = 0; fdr_w_max = 0;
-%!       pow_r_ci = 0; pow_r_bf = 0; pow_r_ss = 0; 
-%!       pow_w_std = 0; pow_w_max = 0; 
-%!       sig_hits_r = 0; type_s_r = 0; type_m_r = 0;
-%!       sig_hits_w = 0; type_s_w = 0; type_m_w = 0;
-%!       mse_r = 0; mse_w = 0;
-%! 
-%!       for s = 1:n_sims
-%!         % 1. Induce Predictor Correlation (r = 0.2)
-%!         X_raw = randn(n_vals, p);
-%!         X = bsxfun(@plus, X_raw * 0.8944, randn(n_vals, 1) * 0.4472); 
-%!         X = [ones(n_vals, 1), X];
-%! 
-%!         % 2. Setup Signal (Variable 2 is the only true signal)
-%!         beta_true = zeros(p+1, q);
-%!         beta_true(2, :) = snr; 
-%! 
-%!         % 3. Induce Outcome Noise Correlation (r = 0.2)
-%!         noise_unique = randn(n_vals, q);
-%!         noise_common = randn(n_vals, 1);
-%!         E = bsxfun(@plus, noise_unique * 0.8944, noise_common * 0.4472);
-%! 
-%!         % 4. Generate Y
-%!         y_raw = X * beta_true + E; 
-%!         y = (y_raw - mean(y_raw)) ./ std(y_raw);
-%!                 
-%!         S_r = bootridge(y, X, [], 200, alpha, [], 1, s);
-%!                 
-%!         rej_w_std = false(p+1, q);
-%!         rej_w_max = false(p+1, q);
-%!         coeffs_w  = zeros(p+1, q);
-%!         for j = 1:q
-%!           res_std = bootwild(y(:,j), X, [], 1999, alpha, s, 0);
-%!           res_max = bootwild(y(:,j), X, [], 1999, {alpha}, s, 1);
-%!           rej_w_std(:, j) = (res_std.pval <= alpha);
-%!           rej_w_max(:, j) = (res_max.pval <= alpha);
-%!           coeffs_w(:, j)  = res_max.original;
-%!         end
-%!                 
-%!         % --- Indices ---
-%!         null_idx = 3:(p+1);
-%!         sig_idx  = 2;
-%!                 
-%!         % --- Ridge Decisions ---
-%!         dec_r_ci = (S_r.CI_lower > 0 | S_r.CI_upper < 0);
-%!         dec_r_bf = (S_r.lnBF10 >= 1);
-%!         dec_r_ss = (S_r.stability > (1 - alpha/2));
-%!                 
-%!         % --- FDR Calculation (False Discoveries / Total Discoveries) ---
-%!         % Ridge CI
-%!         fd = sum(sum(dec_r_ci(null_idx, :)));
-%!         td = sum(sum(dec_r_ci(2:(p+1), :)));
-%!         if td > 0, fdr_r_ci = fdr_r_ci + (fd/td); end
-%!                 
-%!         % Ridge BF
-%!         fd = sum(sum(dec_r_bf(null_idx, :)));
-%!         td = sum(sum(dec_r_bf(2:(p+1), :)));
-%!         if td > 0, fdr_r_bf = fdr_r_bf + (fd/td); end
-%!                 
-%!         % Ridge SS
-%!         fd = sum(sum(dec_r_ss(null_idx, :)));
-%!         td = sum(sum(dec_r_ss(2:(p+1), :)));
-%!         if td > 0, fdr_r_ss = fdr_r_ss + (fd/td); end
-%!                 
-%!         % Wild Std
-%!         fd = sum(sum(rej_w_std(null_idx, :)));
-%!         td = sum(sum(rej_w_std(2:(p+1), :)));
-%!         if td > 0, fdr_w_std = fdr_w_std + (fd/td); end
-%!                 
-%!         % Wild MaxT
-%!         fd = sum(sum(rej_w_max(null_idx, :)));
-%!         td = sum(sum(rej_w_max(2:(p+1), :)));
-%!         if td > 0, fdr_w_max = fdr_w_max + (fd/td); end
-%! 
-%!         % --- FPR (Per Comparison Error Rate) ---
-%!         num_null_total = length(null_idx) * q;
-%!         fpr_r_ci  = fpr_r_ci + (sum(sum(dec_r_ci(null_idx, :))) / ...
-%!                                 num_null_total);
-%!         fpr_r_bf  = fpr_r_bf + (sum(sum(dec_r_bf(null_idx, :))) / ...
-%!                                 num_null_total);
-%!         fpr_r_ss  = fpr_r_ss + (sum(sum(dec_r_ss(null_idx, :))) / ...
-%!                                 num_null_total);
-%!         fpr_w_std = fpr_w_std + (sum(sum(rej_w_std(null_idx, :))) / ...
-%!                                  num_null_total);
-%!         fpr_w_max = fpr_w_max + (sum(sum(rej_w_max(null_idx, :))) / ...
-%!                                  num_null_total);
-%!                 
-%!         % --- Signal Analysis ---
-%!         pow_r_ci  = pow_r_ci + (sum(dec_r_ci(sig_idx, :)) / q);
-%!         pow_r_bf  = pow_r_bf + (sum(dec_r_bf(sig_idx, :)) / q);
-%!         pow_r_ss  = pow_r_ss + (sum(dec_r_ss(sig_idx, :)) / q);
-%!         pow_w_std = pow_w_std + (sum(rej_w_std(sig_idx, :)) / q);
-%!         pow_w_max = pow_w_max + (sum(rej_w_max(sig_idx, :)) / q);
-%! 
-%!         for j = 1:q
-%!           if dec_r_ci(sig_idx, j)
-%!             sig_hits_r = sig_hits_r + 1;
-%!             if sign(S_r.coefficient(2,j)) ~= sign(snr)
-%!               type_s_r = type_s_r + 1;
-%!             end
-%!             type_m_r = type_m_r + (abs(S_r.coefficient(2,j)) / abs(snr));
-%!           end
-%!           if rej_w_max(sig_idx, j)
-%!             sig_hits_w = sig_hits_w + 1;
-%!             if sign(coeffs_w(2,j)) ~= sign(snr)
-%!               type_s_w = type_s_w + 1;
-%!             end
-%!             type_m_w = type_m_w + (abs(coeffs_w(2,j)) / abs(snr));
-%!           end
-%!         end
-%! 
-%!         X_test = [ones(50, 1), randn(50, p)];
-%!         y_test_raw = X_test * beta_true + randn(50, q);
-%!         y_test = (y_test_raw - mean(y_test_raw)) ./ std(y_test_raw);
-%!         mse_r = mse_r + mean(mean((y_test - X_test*S_r.coefficient).^2));
-%!         mse_w = mse_w + mean(mean((y_test - X_test*coeffs_w).^2));
-%!       end
-%!             
-%!     end
-%!   end
-%! end
+%! %                  under global multicollinearity (r = 0.2)
+%! %  
+%! %  --- Parameters ---
+%! %  n_sims   = 30;       
+%! %  alpha    = 0.05;     
+%! %  n_vals   = 40;      
+%! %  p_vals   = [3, 10, 30]; 
+%! %  q_vals   = [1, 5, 10];   
+%! %  snr_vals = [0.1, 0.2, 0.4, 0.8]; 
+%! %  seed     = 42; 
+%! %  randn('seed', seed);
+%! %  
+%! %  for p = p_vals
+%! %    for q = q_vals
+%! %      for snr = snr_vals
+%! %        % Accumulators
+%! %        fpr_r_ci = 0; fpr_r_bf = 0; fpr_r_ss = 0;
+%! %        fpr_w_std = 0; fpr_w_max = 0;
+%! %        fdr_r_ci = 0; fdr_r_bf = 0; fdr_r_ss = 0;
+%! %        fdr_w_std = 0; fdr_w_max = 0;
+%! %        pow_r_ci = 0; pow_r_bf = 0; pow_r_ss = 0; 
+%! %        pow_w_std = 0; pow_w_max = 0; 
+%! %        sig_hits_r = 0; type_s_r = 0; type_m_r = 0;
+%! %        sig_hits_w = 0; type_s_w = 0; type_m_w = 0;
+%! %        mse_r = 0; mse_w = 0;
+%! %  
+%! %        for s = 1:n_sims
+%! %          % 1. Induce Predictor Correlation (r = 0.2)
+%! %          X_raw = randn(n_vals, p);
+%! %          X = bsxfun(@plus, X_raw * 0.8944, randn(n_vals, 1) * 0.4472); 
+%! %          X = [ones(n_vals, 1), X];
+%! %  
+%! %          % 2. Setup Signal (Variable 2 is the only true signal)
+%! %          beta_true = zeros(p+1, q);
+%! %          beta_true(2, :) = snr; 
+%! %  
+%! %          % 3. Induce Outcome Noise Correlation (r = 0.2)
+%! %          noise_unique = randn(n_vals, q);
+%! %          noise_common = randn(n_vals, 1);
+%! %          E = bsxfun(@plus, noise_unique * 0.8944, noise_common * 0.4472);
+%! %  
+%! %          % 4. Generate Y
+%! %          y_raw = X * beta_true + E; 
+%! %          y = (y_raw - mean(y_raw)) ./ std(y_raw);
+%! %                  
+%! %          S_r = bootridge(y, X, [], 200, alpha, [], 1, s);
+%! %                  
+%! %          rej_w_std = false(p+1, q);
+%! %          rej_w_max = false(p+1, q);
+%! %          coeffs_w  = zeros(p+1, q);
+%! %          for j = 1:q
+%! %            res_std = bootwild(y(:,j), X, [], 1999, alpha, s, 0);
+%! %            res_max = bootwild(y(:,j), X, [], 1999, {alpha}, s, 1);
+%! %            rej_w_std(:, j) = (res_std.pval <= alpha);
+%! %            rej_w_max(:, j) = (res_max.pval <= alpha);
+%! %            coeffs_w(:, j)  = res_max.original;
+%! %          end
+%! %                  
+%! %          % --- Indices ---
+%! %          null_idx = 3:(p+1);
+%! %          sig_idx  = 2;
+%! %                  
+%! %          % --- Ridge Decisions ---
+%! %          dec_r_ci = (S_r.CI_lower > 0 | S_r.CI_upper < 0);
+%! %          dec_r_bf = (S_r.lnBF10 >= 1);
+%! %          dec_r_ss = (S_r.stability > (1 - alpha/2));
+%! %                  
+%! %          % --- FDR Calculation ---
+%! %          fd = sum(sum(dec_r_ci(null_idx, :)));
+%! %          td = sum(sum(dec_r_ci(2:(p+1), :)));
+%! %          if td > 0, fdr_r_ci = fdr_r_ci + (fd/td); end
+%! %                  
+%! %          fd = sum(sum(dec_r_bf(null_idx, :)));
+%! %          td = sum(sum(dec_r_bf(2:(p+1), :)));
+%! %          if td > 0, fdr_r_bf = fdr_r_bf + (fd/td); end
+%! %                  
+%! %          fd = sum(sum(dec_r_ss(null_idx, :)));
+%! %          td = sum(sum(dec_r_ss(2:(p+1), :)));
+%! %          if td > 0, fdr_r_ss = fdr_r_ss + (fd/td); end
+%! %                  
+%! %          fd = sum(sum(rej_w_std(null_idx, :)));
+%! %          td = sum(sum(rej_w_std(2:(p+1), :)));
+%! %          if td > 0, fdr_w_std = fdr_w_std + (fd/td); end
+%! %                  
+%! %          fd = sum(sum(rej_w_max(null_idx, :)));
+%! %          td = sum(sum(rej_w_max(2:(p+1), :)));
+%! %          if td > 0, fdr_w_max = fdr_w_max + (fd/td); end
+%! %  
+%! %          % --- FPR ---
+%! %          num_null_total = length(null_idx) * q;
+%! %          fpr_r_ci  = fpr_r_ci + (sum(sum(dec_r_ci(null_idx, :))) / ...
+%! %                                  num_null_total);
+%! %          fpr_r_bf  = fpr_r_bf + (sum(sum(dec_r_bf(null_idx, :))) / ...
+%! %                                  num_null_total);
+%! %          fpr_r_ss  = fpr_r_ss + (sum(sum(dec_r_ss(null_idx, :))) / ...
+%! %                                  num_null_total);
+%! %          fpr_w_std = fpr_w_std + (sum(sum(rej_w_std(null_idx, :))) / ...
+%! %                                   num_null_total);
+%! %          fpr_w_max = fpr_w_max + (sum(sum(rej_w_max(null_idx, :))) / ...
+%! %                                   num_null_total);
+%! %                  
+%! %          % --- Signal Analysis ---
+%! %          pow_r_ci  = pow_r_ci + (sum(dec_r_ci(sig_idx, :)) / q);
+%! %          pow_r_bf  = pow_r_bf + (sum(dec_r_bf(sig_idx, :)) / q);
+%! %          pow_r_ss  = pow_r_ss + (sum(dec_r_ss(sig_idx, :)) / q);
+%! %          pow_w_std = pow_w_std + (sum(rej_w_std(sig_idx, :)) / q);
+%! %          pow_w_max = pow_w_max + (sum(rej_w_max(sig_idx, :)) / q);
+%! %  
+%! %          for j = 1:q
+%! %            if dec_r_ci(sig_idx, j)
+%! %              sig_hits_r = sig_hits_r + 1;
+%! %              if sign(S_r.coefficient(2,j)) ~= sign(snr)
+%! %                type_s_r = type_s_r + 1;
+%! %              end
+%! %              type_m_r = type_m_r + (abs(S_r.coefficient(2,j)) / abs(snr));
+%! %            end
+%! %            if rej_w_max(sig_idx, j)
+%! %              sig_hits_w = sig_hits_w + 1;
+%! %              if sign(coeffs_w(2,j)) ~= sign(snr)
+%! %                type_s_w = type_s_w + 1;
+%! %              end
+%! %              type_m_w = type_m_w + (abs(coeffs_w(2,j)) / abs(snr));
+%! %            end
+%! %          end
+%! %  
+%! %          X_test = [ones(50, 1), randn(50, p)];
+%! %          y_test_raw = X_test * beta_true + randn(50, q);
+%! %          y_test = (y_test_raw - mean(y_test_raw)) ./ std(y_test_raw);
+%! %          mse_r = mse_r + mean(mean((y_test - X_test*S_r.coefficient).^2));
+%! %          mse_w = mse_w + mean(mean((y_test - X_test*coeffs_w).^2));
+%! %        end
+%! %              
+%! %      end
+%! %    end
+%! %  end
 %!
 %! %  
 %! %              |     |--- MSE ---|

@@ -550,6 +550,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
 
   % Get dimensions of the data
   [m, n] = size (X);
+  p = n - 1;
   q = size (Y, 2);
   % Check that Y contains floating point numbers
   if (~ any (strcmpi (class (Y), {'single', 'double'})))
@@ -991,6 +992,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     fprintf (cat (2, ' \n Empirical Bayes Ridge Regression (.632 Bootstrap',...
                      ' Tuning) - Summary\n ******************************', ...
                      '*************************************************\n'));
+    fprintf ('\n Number of predictors (p): %d\n', p);
     fprintf ('\n Number of outcomes (q): %d\n', q);
     fprintf ('\n Design effect (Deff): %.3g\n', deff);
     fprintf('\n Bootstrap resamples (nboot): %d\n', nboot);

@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
   <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-  <meta name="date" content="2026-03-03"/>
+  <meta name="date" content="2026-03-04"/>
   <meta name="generator" content="generate_html 0.3.3" />
   <meta name="author" content="Andrew Penn" />
   <meta name="description" content="A package for statistical analysis using resampling methods." />
@@ -98,7 +98,11 @@
      after sampling cannot be vectorized. If the parallel computing toolbox
      (Matlab) or Parallel package (Octave) is installed and loaded, then the
      function evaluations will be automatically accelerated by parallel
-     processing on platforms with multiple processors.
+     processing on platforms with multiple processors. In GNU Octave, the
+     maximum number of workers used can be set by the user before running
+     randtest2, for example, for 2 workers with the command:
+
+          setenv ('OMP_NUM_THREADS', '2')
 
      '[PVAL, STAT] = randtest2 (...)' also returns the test statistic.
 

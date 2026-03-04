@@ -562,6 +562,9 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   if ( ~all (X(:, 1) == 1) )
     X = cat (2, ones (m, 1), X);
     n = n + 1;
+    if (~ isempty (categor))
+       categor = categor + 1; % Shift indices to match new design matrix
+    end
   end
   p = n - 1;
   % Check that X contains floating point numbers
@@ -744,7 +747,8 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   % Get the prediction error and stability selection at the optimal lambda
   % Use a minimum of 1999 bootstrap resamples for stability selection
   B = max (nboot, 1999);
-  [pred_err, stability] = booterr632 (YS, XC, lambda, P_vec, B, categor, seed);
+  [pred_err, stability, oob_err] = booterr632 (YS, XC, lambda, P_vec, B, ...
+                                               categor, seed);
 
   % Correct stability selection probabilities for the design effect
   stdnormcdf = @(x) 0.5 * (1 + erf (x / sqrt (2)));
@@ -771,7 +775,9 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
 
   % Regression coefficient and the effective degrees of freedom for ridge
   % regression penalized using the optimized (and corrected) lambda
-  A = X' * X + diag (lambda * P_vec);     % Regularized normal equation matrix
+  % Calculate regularized system matrix: A = X' * X + diag (lambda * P_vec);
+  A = X' * X;                                      % System matrix
+  A(1:n+1:end) = A(1:n+1:end) + (lambda * P_vec'); % Regularized system matrix
   [U, flag] = chol (A);                   % Upper Cholesky factor of symmetric A
   tol = sqrt (m / eps (class (X)));       % Set tolerance  
   if (~ flag); flag = (max (diag (U)) / min (diag (U)) > 1e+06); end;
@@ -1100,6 +1106,12 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     end
     fprintf('\n');
 
+    % Plot bootstrap learning curve
+    plot (oob_err(1:nboot), '-r', 'linewidth', 1); box off; grid on;
+    title ('Bootstrap learning curve');
+    xlabel ({'','Bootstrap resample'});
+    ylabel ({'Running out-of-bag error',''});
+
   end
 
 end
@@ -1109,13 +1121,19 @@ end
 
 %% FUNCTION FOR .632 BOOTSTRAP ESTIMATOR OF PREDICTION ERROR
 
-function [PRED_ERR, STABILITY] = booterr632 (Y, X, lambda, P_vec, nboot, ...
-                                             categor, seed)
+function [PRED_ERR, STABILITY, OOB_ERR] = booterr632 (Y, X, lambda, P_vec, ...
+                                                      nboot, categor, seed)
 
   % This function computes Efron & Tibshirani’s .632 bootstrap prediction error
-  % for a multivariate linear ridge/Tikhonov model. Loss is the per-observation
-  % squared Euclidean error:
+  % for a multivariate linear ridge/Tikhonov model. The .632 bootstrap estimator
+  % is a weighted average of the overly-optimistic apparent error (in‑bag error)
+  % and the overly-pessimistic out-of-bag error, where the weights arise from
+  % the expected probability that a data point is included in a bootstrap sample
+  % (~0.632) or excluded (~0.368).
+  %
+  % Loss is the per-observation squared Euclidean error:
   %       Q(y_i, yhat_i) = ||y_i - yhat_i||_2^2
+  %
   % Efron and Tibshirani (1993) An Introduction to the Bootstrap. New York, NY:
   %  Chapman & Hall. pg 247-252
   
@@ -1185,6 +1203,7 @@ function [PRED_ERR, STABILITY] = booterr632 (Y, X, lambda, P_vec, nboot, ...
   SSE_OOB  = 0; 
   N_OOB    = 0;
   NSAMP    = 0;
+  OOB_ERR  = nan (nboot, 1);
   if (nargout > 1)
     tau = sqrt (eps_X);
     Sign_obs = sign (Beta_obs);
@@ -1275,6 +1294,9 @@ function [PRED_ERR, STABILITY] = booterr632 (Y, X, lambda, P_vec, nboot, ...
 
     % Calculate and accumulate number of OOB observations
     N_OOB  = N_OOB + sum (o) ;
+
+    % Calculate running out-of-bag error (smooth and monotonic)
+    OOB_ERR(b:nboot) = SSE_OOB / N_OOB;
 
     % Count actual bootstrap samples used
     NSAMP = NSAMP + 1;

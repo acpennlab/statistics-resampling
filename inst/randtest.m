@@ -40,6 +40,15 @@
 %        regression coefficients, or with @cor for the correlation coefficient.
 %        The default value of FUNC is @mldivide.
 %
+%        If function evaluations cannot be vectorized and the parallel computing
+%        toolbox (Matlab) or Parallel package (Octave) is installed and loaded,
+%        then the function evaluations will be automatically accelerated by
+%        parallel processing on platforms with multiple processors. In GNU
+%        Octave, the maximum number of workers used can be set by the user
+%        before running randtest, for example, for 2 workers with the command:
+%
+%          setenv ('OMP_NUM_THREADS', '2')
+%
 %     'PVAL = randtest (X, Y, NREPS, FUNC, SEED)' initialises the Mersenne
 %     Twister random number generator using an integer SEED value so that
 %     the results of 'randtest' results are reproducible when the
@@ -90,16 +99,24 @@ function [pval, stat, fpr, STATS] = randtest (x, y, nreps, func, seed)
   % Check if we have parallel processing capabilities
   PARALLEL = false; % Default
   if (ISOCTAVE)
+    %%% OCTAVE %%%
     software = pkg ('list');
     names = cellfun (@(S) S.name, software, 'UniformOutput', false);
     status = cellfun (@(S) S.loaded, software, 'UniformOutput', false);
     index = find (~ cellfun (@isempty, regexpi (names, '^parallel')));
     if ( (~ isempty (index)) && (logical (status{index})) )
       PARALLEL = true;
+      % Set ncpus manually through environmental variable, for example:
+      %   setenv ('OMP_NUM_THREADS', '4')
+      % It is optimal to set this to the number of physical cores, which will be
+      % different to the number of logical cores when hyperthreading is enabled. 
+      % This can improve performance by reducing parallel overheads.
+      ncpus = nproc ('overridable');
     end
   else
+    %%% MATLAB %%%
     try 
-      pool = gcp ('nocreate'); 
+      pool = gcp ('nocreate');
       PARALLEL = ~ isempty (pool);
     catch
       % Do nothing
@@ -206,7 +223,7 @@ function [pval, stat, fpr, STATS] = randtest (x, y, nreps, func, seed)
   else
     if (PARALLEL)
       if (ISOCTAVE)
-        STATS = parcellfun (inf, func, num2cell (repmat(x, 1, nreps), 1), ...
+        STATS = parcellfun (ncpus, func, num2cell (repmat(x, 1, nreps), 1), ...
                              num2cell (Y, 1));
       else
         STATS = zeros (1, nreps);

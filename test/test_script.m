@@ -490,14 +490,12 @@ try
           'no' 'no' 'yes' 'no' 'no' 'no' 'no' 'no' 'yes'}';
   babble = [4.6 4.4 3.9 5.6 5.1 5.5 3.9 3.5 3.7...
             5.6 4.7 5.9 6.0 5.4 6.6 5.8 5.3 5.7]';
- 
   STATS = bootlm (babble, {sugar, milk}, 'model', 'full', 'display', 'off', ...
                                          'varnames', {'sugar', 'milk'});
   % bootlm:test:8
   % Unbalanced three-way design (3x2x2). The data is from a study of the
   % effects of three different drugs, biofeedback and diet on patient blood
   % pressure, adapted* from Maxwell, Delaney and Kelly (2018): Ch 8, Table 12
- 
   drug = {'X' 'X' 'X' 'X' 'X' 'X' 'X' 'X' 'X' 'X' 'X' 'X' ...
           'X' 'X' 'X' 'X' 'X' 'X' 'X' 'X' 'X' 'X' 'X' 'X';
           'Y' 'Y' 'Y' 'Y' 'Y' 'Y' 'Y' 'Y' 'Y' 'Y' 'Y' 'Y' ...
@@ -764,39 +762,71 @@ try
   pval7 = randtest2 (X, Y, false, [], @(A, B) log (var (A) ./ var (B)), 1);
 
   % bootridge:test:1
+  % Basic functionality: univariate, intercept auto-add, field shapes
   m = 30;
   x = linspace (-1, 1, m).';
-  X = x;
-  randn (123);
+  X = x;                        % No intercept provided
+  randn ('seed', 123);
   y = 1.0 + 0.8 * x + 0.1 * randn (m,1);
   S = bootridge (y, X, [], 200, 0.05, [], 1.1, 777);
-  % bootridge:test:2
+  % Check expected fields and sizes
+  assert (isfield (S, 'coefficient'));
+  assert (~ isfield (S, 'estimate'));
+  assert (size (S.coefficient, 2) == 1);
+  assert (size (S.coefficient, 1) == 2);     % intercept + slope
+  assert (isfinite (S.lambda) && (S.lambda > 0));
+  assert (isfinite (S.df_lambda) && (S.df_lambda > 0) && ...
+          (S.df_lambda <= m));
+  assert (all (S.CI_lower(:) <= S.coefficient(:) + eps));
+  assert (all (S.CI_upper(:) + eps >= S.coefficient(:)));
+  assert (isfinite (S.Sigma_Y_hat) && (S.Sigma_Y_hat > 0));
+  assert (iscell (S.Sigma_Beta) && (numel (S.Sigma_Beta) == 1));
+  assert (all (size (S.Sigma_Beta{1}) == [2, 2]));
+  assert (S.nboot == 200);
+  assert (S.Deff == 1.1);
+  % Hypothesis matrix L: return linear estimate instead of coefficients
   m = 28;
   x = linspace (-1.5, 1.5, m).';
-  X = [ones(m,1), x];
-  rng('default');
+  X = [ones(m,1), x];               % Explicit intercept is first column
+  randn ('seed', 123);
   y = 3.0 + 0.4 * x + 0.15 * randn (m,1);
+  % Contrast to extract only the slope (second coefficient)
   L = [0; 1];
   S = bootridge (y, X, [], 100, 0.10, L, 1, 99);
-  % bootridge:test:3
+  assert (~ isfield (S, 'coefficient'));
+  assert (isfield (S, 'estimate'));
+  assert (all (size (S.estimate) == [1, 1]));
+  assert (all (size (S.CI_lower) == [1, 1]));
+  assert (all (size (S.CI_upper) == [1, 1]));
+  assert (all (size (S.BF10 ) == [1, 1]));
+  assert (iscell (S.prior) && all (size (S.prior) == [1, 1]));
+  % Categorical predictor supplied via CATEGOR (no scaling)
   m = 36;
+  % Two-level factor coded as centered +/-0.5 (column 2), plus a continuous
   g = repmat ([ -0.5; 0.5 ], 18, 1);
   x = linspace (-2, 2, m).';
   X = [ones(m,1), g, x];
   beta = [1.0; 0.7; -0.2];
-  rng('default');
+  randn ('seed', 123);
   y = X * beta + 0.25 * randn (m, 1);
-  categor = 2;
+  categor = 2;                  % column 2 is categorical (excludes intercept)
   S = bootridge (y, X, categor, 100, 0.05, [], 1, 2024);
-  % bootridge:test:4
+  assert (isfield (S, 'coefficient'));
+  assert (size (S.coefficient, 1) == 3);
+  assert (isfinite (S.lambda) && (S.lambda > 0));
+  % Check CI bracketing for all coefficients
+  assert (all (S.CI_lower(:) <= S.coefficient(:) + eps));
+  assert (all (S.CI_upper(:) + eps >= S.coefficient(:)));
+  % Multivariate outcomes and Deff scaling: Sigma_Y_hat should scale by Deff
   m = 32;
   x = linspace (-1, 1, m).';
   X = [ones(m,1), x];
   B = [2.0, -1.0; 0.5, 0.8];
-  rng('default');
+  randn ('seed', 123);
   Y = X * B + 0.2 * randn (m, 2);
   S1 = bootridge (Y, X, [], 100, 0.10, [], 1, 42);
   S2 = bootridge (Y, X, [], 100, 0.10, [], 2, 42);
+  assert (all (size (S1.Sigma_Y_hat) == [2, 2]));
 
   % credint:test:1
   heights = [183, 192, 182, 183, 177, 185, 188, 188, 182, 185].';

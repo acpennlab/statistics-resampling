@@ -76,7 +76,11 @@
 %     after sampling cannot be vectorized. If the parallel computing toolbox
 %     (Matlab) or Parallel package (Octave) is installed and loaded, then the
 %     function evaluations will be automatically accelerated by parallel
-%     processing on platforms with multiple processors.
+%     processing on platforms with multiple processors. In GNU Octave, the
+%     maximum number of workers used can be set by the user before running
+%     randtest2, for example, for 2 workers with the command:
+%
+%          setenv ('OMP_NUM_THREADS', '2')
 %
 %     '[PVAL, STAT] = randtest2 (...)' also returns the test statistic.
 %
@@ -129,16 +133,24 @@ function [pval, stat, fpr, STATS] = randtest2 (x, y, paired, nreps, func, seed)
   % Check if we have parallel processing capabilities
   PARALLEL = false; % Default
   if (ISOCTAVE)
+    %%% OCTAVE %%%
     software = pkg ('list');
     names = cellfun (@(S) S.name, software, 'UniformOutput', false);
     status = cellfun (@(S) S.loaded, software, 'UniformOutput', false);
     index = find (~ cellfun (@isempty, regexpi (names, '^parallel')));
     if ( (~ isempty (index)) && (logical (status{index})) )
       PARALLEL = true;
+      % Set ncpus manually through environmental variable, for example:
+      %   setenv ('OMP_NUM_THREADS', '4')
+      % It is optimal to set this to the number of physical cores, which will be
+      % different to the number of logical cores when hyperthreading is enabled. 
+      % This can improve performance by reducing parallel overheads.
+      ncpus = nproc ('overridable');
     end
   else
+    %%% MATLAB %%%
     try 
-      pool = gcp ('nocreate'); 
+      pool = gcp ('nocreate');
       PARALLEL = ~ isempty (pool);
     catch
       % Do nothing
@@ -355,7 +367,7 @@ function [pval, stat, fpr, STATS] = randtest2 (x, y, paired, nreps, func, seed)
   else
     if (PARALLEL)
       if (ISOCTAVE)
-        STATS = pararrayfun (inf, @(b) func (vertcat (X{:,b}), ...
+        STATS = pararrayfun (ncpus, @(b) func (vertcat (X{:,b}), ...
                                              vertcat (Y{:,b})), 1:nreps);
       else
         STATS = zeros (1, nreps);

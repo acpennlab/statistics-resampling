@@ -2285,7 +2285,7 @@ end
 %! m = 30;
 %! x = linspace (-1, 1, m).';
 %! X = x;                           % No intercept provided
-%! randn ('twister', 123);
+%! randn ('seed', 123);
 %! y = 1.0 + 0.8 * x + 0.1 * randn (m,1);
 %! S = bootridge (y, X, [], 200, 0.05, [], 1.1, 777);
 %! % Check expected fields and sizes
@@ -2309,7 +2309,7 @@ end
 %! m = 28;
 %! x = linspace (-1.5, 1.5, m).';
 %! X = [ones(m,1), x];              % Explicit intercept is first column
-%! randn ('twister', 123);
+%! randn ('seed', 123);
 %! y = 3.0 + 0.4 * x + 0.15 * randn (m,1);
 %! % Contrast to extract only the slope (second coefficient)
 %! L = [0; 1];
@@ -2330,7 +2330,7 @@ end
 %! x = linspace (-2, 2, m).';
 %! X = [ones(m,1), g, x];
 %! beta = [1.0; 0.7; -0.2];
-%! randn ('twister', 123);
+%! randn ('seed', 123);
 %! y = X * beta + 0.25 * randn (m, 1);
 %! categor = 2;                  % column 2 is categorical (excludes intercept)
 %! S = bootridge (y, X, categor, 100, 0.05, [], 1, 2024);
@@ -2347,7 +2347,7 @@ end
 %! x = linspace (-1, 1, m).';
 %! X = [ones(m,1), x];
 %! B = [2.0, -1.0; 0.5, 0.8];
-%! randn ('twister', 123);
+%! randn ('seed', 123);
 %! Y = X * B + 0.2 * randn (m, 2);
 %! S1 = bootridge (Y, X, [], 100, 0.10, [], 1, 42);
 %! S2 = bootridge (Y, X, [], 100, 0.10, [], 2, 42);

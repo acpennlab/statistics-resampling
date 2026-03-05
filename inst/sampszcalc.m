@@ -146,6 +146,9 @@ function n = sampszcalc (testtype, effsz, power, alpha, tails, deff)
         end
       else 
         STAT = abs (effsz);
+        if (STAT >= 1)
+          error ('sampszcalc: |r| must be < 1')
+        end
       end
       STAT = atanh (STAT);
       testtype = 'z';
@@ -182,15 +185,14 @@ function n = sampszcalc (testtype, effsz, power, alpha, tails, deff)
         % Create function to optimize sample size based on Student-t
         % distribution and n * k - k degrees of freedom
         if ((exist ('betaincinv', 'builtin')) || (exist ('betaincinv', 'file')))
-          studinv = @(P, DF) sign (P - 0.5) * ...
-                sqrt ( DF ./ betaincinv (2 * min (P, 1 - P), DF / 2, 0.5) - DF);
+          studinv = @(P, DF) sign (P - 0.5) * sqrt ( DF ./ betaincinv ( ...
+                                2 * min (P, 1 - P), DF / 2, 0.5) - DF);
         else
-          studinv = @(P, DF) sign (P - 0.5) * ...
-                   sqrt ( DF ./ betainv (2 * min (P, 1 - P), DF / 2, 0.5) - DF);
+          studinv = @(P, DF) sign (P - 0.5) * sqrt ( DF ./ betainv ( ...
+                                2 * min (P, 1 - P), DF / 2, 0.5) - DF);
         end
-        func = @(n) n - k * ...
-                 (((studinv (power, n * k - k) + ...
-                    studinv (1 - alpha / tails, n * k - k)) / STAT)^2 + c);
+        func = @(n) n - k * (((studinv (power, max (1, n * k - k)) + ...
+                studinv (1 - alpha / tails, max (1, n * k - k))) / STAT)^2 + c);
         n = ceil (fzero (func, n0) * deff); % Find the root using fzero
     end
 

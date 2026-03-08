@@ -11,7 +11,6 @@
 % -- Function File: bootridge (Y, X, CATEGOR, NBOOT, ALPHA, L, DEFF, SEED, TOL)
 % -- Function File: S = bootridge (Y, X, ...)
 % -- Function File: [S, YHAT] = bootridge (Y, X, ...)
-% -- Function File: [S, YHAT, P] = bootridge (Y, X, ...)
 %
 %      'bootridge (Y, X)' fits an empirical Bayes ridge regression model using
 %      a linear Normal (Gaussian) likelihood with an empirical Bayes normal
@@ -189,19 +188,27 @@
 %            Reported as 't (mu, sigma, df_t)' on the coefficient (or estimate)
 %            scale; see CONDITIONAL VS MARGINAL PRIORS for details.
 %
+%        o Deff
+%            Design effect used to inflate the residual covariance and reduce
+%            inferential degrees of freedom to account for clustering.
+%
 %        o lambda
 %            Scalar ridge tuning constant selected by minimizing the .632
 %            bootstrap estimate of prediction error (then scaled by DEFF).
-%
-%        o Sigma_Y_hat
-%            Estimated residual covariance matrix of the outcomes, inflated by
-%            the design effect DEFF when applicable. For a univariate outcome,
-%            this reduces to the residual variance.
 %
 %        o df_lambda
 %            Effective residual degrees of freedom under ridge regression,
 %            defined as m minus the trace of the ridge hat matrix. Used for
 %            residual variance estimation (scale); does NOT include DEFF.
+%
+%        o df_t
+%            Inferential degrees of freedom, which is df_lambda adjusted for
+%            for the design effect.
+%
+%        o Sigma_Y_hat
+%            Estimated residual covariance matrix of the outcomes, inflated by
+%            the design effect DEFF when applicable. For a univariate outcome,
+%            this reduces to the residual variance.
 %
 %        o tau2_hat
 %            Estimated prior covariance of the regression coefficients across
@@ -216,10 +223,6 @@
 %        o nboot
 %            Number of bootstrap samples used to estimate the .632 bootstrap
 %            prediction error.
-%
-%        o Deff
-%            Design effect used to inflate the residual covariance and reduce
-%            inferential degrees of freedom to account for clustering.
 %
 %        o tol
 %            Numeric tolerance used in the golden-section search for optimizing
@@ -253,10 +256,11 @@
 %            MARGINAL PRIORS and DETAIL below. Diagonal entries are undefined
 %            and not included.
 %
-%      '[S, YHAT] = bootridge (Y, X, ...)' returns fitted values.
+%        o P_vec 
+%            A vector of predictor-wise penalty weights used to normalize
+%            shrinkage across the predictor terms.
 %
-%      '[S, YHAT, P] = bootridge (Y, X, ...)' returns the predictor-wise penalty
-%      weights used to normalize shrinkage across features of different scales.
+%      '[S, YHAT] = bootridge (Y, X, ...)' returns fitted values.
 %
 %      DETAIL: The model implements an empirical Bayes ridge regression that
 %      simultaneously addresses the problems of multicollinearity, multiple 
@@ -558,20 +562,6 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     error ('bootwild: Y must contain single or double precision numbers.');
   end
 
-  % Check that the first column is X are all equal to 1, if not create one
-  if ( ~all (X(:, 1) == 1) )
-    X = cat (2, ones (m, 1), X);
-    n = n + 1;
-    if (~ isempty (categor))
-       categor = categor + 1; % Shift indices to match new design matrix
-    end
-  end
-  p = n - 1;
-  % Check that X contains floating point numbers
-  if (~ any (strcmpi (class (X), {'single', 'double'})))
-    error ('bootwild: X must contain single or double precision numbers.');
-  end
-
   % If categor is not provided, set it to empty
   if ( (nargin < 3) || isempty (categor) )
     categor = [];
@@ -591,6 +581,20 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     if ( any (categor > n) )
       error ('bootridge: Numbers in categor exceed the number of columns in X');
     end
+  end
+
+  % Check that the first column is X are all equal to 1, if not create one
+  if ( ~all (X(:, 1) == 1) )
+    X = cat (2, ones (m, 1), X);
+    n = n + 1;
+    if (~ isempty (categor))
+       categor = categor + 1; % Shift indices to match new design matrix
+    end
+  end
+  p = n - 1;
+  % Check that X contains floating point numbers
+  if (~ any (strcmpi (class (X), {'single', 'double'})))
+    error ('bootwild: X must contain single or double precision numbers.');
   end
 
   % If nboot is not specified, set it to 100.
@@ -659,8 +663,8 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   end
 
   % Check the number of output arguments requested
-  if (nargout > 3)
-    error ('bootridge: Only 3 output arguments can be requested.');
+  if (nargout > 2)
+    error ('bootridge: Only 2 output arguments can be requested.');
   end
 
   % Check if running in Octave (else assume Matlab)
@@ -980,18 +984,20 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   S.BF10 = BF10;
   S.lnBF10 = lnBF10;
   S.prior = prior;
+  S.Deff = deff;
   S.lambda = lambda;
-  S.Sigma_Y_hat = Sigma_Y_hat;
   S.df_lambda = df_lambda;
+  S.df_t = df_t;
+  S.Sigma_Y_hat = Sigma_Y_hat;
   S.tau2_hat = tau2_hat;
   S.Sigma_Beta = Sigma_Beta;
   S.nboot = nboot;
-  S.Deff = deff;
   S.tol = tol;
   S.iter = iter;
   S.pred_err = pred_err;
   S.stability = stability;
   if (q > 1); S.RTAB = RTAB; end
+  S.P_vec = P_vec;
   if (nargout > 1)
     YHAT = X * Beta;
   end

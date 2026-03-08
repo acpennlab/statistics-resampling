@@ -1437,7 +1437,7 @@ end
 
 function fx = lambda_eval (x, i, c, fxc, parsubfun)
 
-    % Helper function for kss for conditional evaluate of a vactor (x) of lambda
+    % Helper function for kss for conditional evaluate of a vector (x) of lambda
     % If i equals c use fxc, otherwise evaluate f(x(i))
     % where f is parsubfun.obj_func()
     if (i == c)

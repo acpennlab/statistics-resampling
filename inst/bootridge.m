@@ -233,9 +233,14 @@
 %
 %        o pred_err
 %            The minimized prediction error calculated using the optimal lambda.
-%            Note that pred_err calculation is based on the outcome variables
-%            (columns) in Y after internal standardization, and the predictors
-%            X after internal centering.
+%            Note that pred_err calculation is summed over outcome variables
+%            (columns) from the fit on Y (after internal standardization), using
+%            the predictors X (after internal centering).
+%
+%        o RSQ_pred
+%            The predicted R-squared for the fit across all the outcomes.
+%               RSQ_pred (average) = 1 - (S.pred_err / q),
+%            where q is the number of outcomes.
 %
 %        o stability
 %            The probabilities that the sign of the regression coefficients
@@ -754,6 +759,9 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   [pred_err, stability, oob_err] = booterr632 (YS, XC, lambda, P_vec, B, ...
                                                categor, seed);
 
+  % Compute the predicted R^2 averaged across outcomes
+  RSQ_pred = 1 - pred_err / q;
+
   % Correct stability selection probabilities for the design effect
   stdnormcdf = @(x) 0.5 * (1 + erf (x / sqrt (2)));
   stdnorminv = @(p) sqrt (2) * erfinv (2 * p - 1);
@@ -995,6 +1003,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
   S.tol = tol;
   S.iter = iter;
   S.pred_err = pred_err;
+  S.RSQ_pred = RSQ_pred;
   S.stability = stability;
   if (q > 1); S.RTAB = RTAB; end
   S.P_vec = P_vec;

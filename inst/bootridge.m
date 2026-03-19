@@ -1521,27 +1521,6 @@ end
 
 %!demo
 %!
-%! % Two-sample unpaired test on independent samples.
-%!
-%! score = [54 23 45 54 45 43 34 65 77 46 65]';
-%! gender = {'male' 'male' 'male' 'male' 'male' 'female' 'female' 'female' ...
-%!           'female' 'female' 'female'}';
-%!
-%! % Difference between means
-%! % Note that the 'dim' argument in `bootlm` automatically changes the default
-%! % coding to simple contrasts, which are centered.
-%! MAT  = bootlm (score, gender, 'nboot', 0, 'display', 'off', ...
-%!                'dim', 1, 'posthoc', 'trt_vs_ctrl');
-%! fprintf ('The bootridge function is running ...\n')
-%! bootridge (MAT.Y, MAT.X, 2);
-%!
-%! % Group means
-%! MAT  = bootlm (score, gender, 'nboot', 0, 'display', 'off', 'dim', 1);
-%! fprintf ('The bootridge function is running ...\n')
-%! bootridge (MAT.Y, MAT.X, 2, [], [], MAT.L);
-
-%!demo
-%!
 %! % One-way repeated measures design.
 %! % The data is from a study on the number of words recalled by 10 subjects
 %! % for three time condtions, in Loftus & Masson (1994) Psychon Bull Rev. 

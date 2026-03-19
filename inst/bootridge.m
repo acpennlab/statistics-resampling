@@ -1022,6 +1022,7 @@ function [S, Yhat, P_vec] = bootridge (Y, X, categor, nboot, alpha, L, ...
     fprintf ('\n Design effect (Deff): %.3g\n', deff);
     fprintf('\n Bootstrap resamples (nboot): %d\n', nboot);
     fprintf('\n Minimized .632 bootstrap prediction error: %.6g\n', pred_err);
+    fprintf('\n Predicted R-squared: %.3f (%.1f%%)\n', RSQ_pred, RSQ_pred * 100);
     if (deff == 1)
       fprintf (cat (2, '\n Bootstrap optimized ridge tuning constant', ...
                        ' (lambda): %.6g\n'), lambda);

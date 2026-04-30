@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.toolbox" plugin-version="1.0">
-  <configuration build-checksum="3728346821" file="Y:\Documents\GitHub\statistics-resampling\matlab\statistics-resampling.prj" location="Y:\Documents\GitHub\statistics-resampling\matlab" name="statistics-resampling" target="target.toolbox" target-name="Package Toolbox">
+  <configuration build-checksum="3245149650" file="C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\matlab\statistics-resampling.prj" location="C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\matlab" name="statistics-resampling" target="target.toolbox" target-name="Package Toolbox">
     <param.appname>statistics-resampling</param.appname>
     <param.authnamewatermark>Andrew Penn</param.authnamewatermark>
     <param.email>andy.c.penn@gmail.com</param.email>
@@ -7,7 +7,7 @@
     <param.summary>Statistical analysis using resampling methods</param.summary>
     <param.description>The statistics-resampling package is an Octave package and Matlab toolbox that can be used to perform a wide variety of statistics tasks using non-parametric resampling methods. In particular, the functions included can be used to estimate bias, uncertainty (standard errors and confidence intervals), prediction error, information criteria, and calculate p-values for null hypothesis significance tests. Variations of the resampling methods are included that improve the accuracy of the statistics for small samples and samples with complex dependence structures.</param.description>
     <param.screenshot>Y:\Documents\GitHub\statistics-resampling\doc\icon.png</param.screenshot>
-    <param.version>5.6.0</param.version>
+    <param.version>5.7.0</param.version>
     <param.output>${PROJECT_ROOT}\statistics-resampling.mltbx</param.output>
     <param.products.name />
     <param.products.id />
@@ -20,6 +20,7 @@
 %
 % A single file in the toolbox folder:
 .DS_Store
+.mex
 %
 % A single file in a subfolder of the toolbox folder:
 % example/.svn
@@ -49,47 +50,49 @@
       <param.docs />
     </unset>
     <fileset.rootdir>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst</file>
     </fileset.rootdir>
     <fileset.rootfiles>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\boot.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\boot.mexa64</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\boot.mexmaca64</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\boot.mexmaci64</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\boot.mexw32</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\boot.mexw64</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\boot1way.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\bootbayes.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\bootcdf.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\bootci.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\bootclust.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\bootint.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\bootknife.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\bootlm.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\bootmode.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\bootstrp.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\bootwild.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\cor.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\credint.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\deffcalc.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\demo_data.csv</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\randtest.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\randtest1.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\randtest2.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\sampszcalc.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\smoothmad.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\smoothmedian.m</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\smoothmedian.mexa64</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\smoothmedian.mexmaca64</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\smoothmedian.mexmaci64</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\smoothmedian.mexw32</file>
-      <file>Y:\Documents\GitHub\statistics-resampling\inst\smoothmedian.mexw64</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\boot.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\boot.mexa64</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\boot.mexmaca64</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\boot.mexmaci64</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\boot.mexw32</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\boot.mexw64</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\boot1way.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\bootbayes.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\bootcdf.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\bootci.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\bootclust.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\bootint.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\bootknife.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\bootlm.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\bootmode.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\bootridge.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\bootstrp.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\bootwild.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\cor.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\credint.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\deffcalc.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\demo_data.csv</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\randtest.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\randtest1.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\randtest2.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\rohwer_data.csv</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\sampszcalc.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\smoothmad.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\smoothmedian.m</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\smoothmedian.mexa64</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\smoothmedian.mexmaca64</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\smoothmedian.mexmaci64</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\smoothmedian.mexw32</file>
+      <file>C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\inst\smoothmedian.mexw64</file>
     </fileset.rootfiles>
     <fileset.depfun.included />
     <fileset.depfun.excluded />
     <fileset.package />
     <build-deliverables>
-      <file location="Y:\Documents\GitHub\statistics-resampling\matlab" name="statistics-resampling.mltbx" optional="false">Y:\Documents\GitHub\statistics-resampling\matlab\statistics-resampling.mltbx</file>
+      <file location="C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\matlab" name="statistics-resampling.mltbx" optional="false">C:\Users\Andrew Penn\Documents\MATLAB\statistics-resampling-5.7.0\matlab\statistics-resampling.mltbx</file>
     </build-deliverables>
     <workflow />
     <matlab>

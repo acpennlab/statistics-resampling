@@ -13,7 +13,7 @@ description: The statistics-resampling package is an Octave
  calculate p-values for null hypothesis significance tests.
  Variations of the resampling methods are included that
  improve the accuracy of the statistics for small samples
- and samples with complex dependence structures.
+ and samples with complex dependence structures. 
 license: GPLv3+
 depends: octave (>= 4.4.0)
 url: https://github.com/gnu-octave/statistics-resampling

@@ -1123,21 +1123,21 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
     end
 
     % Evaluate which pairs of groups to evaluate as comparisons
-    switch (lower (POSTHOC))
-      case {'none', [], ''}
-        pairs = [];
-      otherwise
-        switch (class (POSTHOC))
-          case 'cell'
-            if (strcmp (POSTHOC{1}, 'trt.vs.ctrl'))
-              POSTHOC{1} = 'trt_vs_ctrl';
-            elseif (~ strcmp (POSTHOC{1}, 'trt_vs_ctrl'))
-              error (cat (2, 'bootlm: REF can only be used to specify a', ...\
-                             ' control group for ''trt_vs_ctrl'''))
-            end
-            pairs = feval (POSTHOC{1}, L, POSTHOC{2:end});
-            POSTHOC = POSTHOC{1};
-          case 'char'
+    switch (class (POSTHOC))
+      case 'cell'
+        if (strcmp (POSTHOC{1}, 'trt.vs.ctrl'))
+          POSTHOC{1} = 'trt_vs_ctrl';
+        elseif (~ strcmp (POSTHOC{1}, 'trt_vs_ctrl'))
+          error (cat (2, 'bootlm: REF can only be used to specify a', ...\
+                         ' control group for ''trt_vs_ctrl'''))
+        end
+        pairs = feval (POSTHOC{1}, L, POSTHOC{2:end});
+        POSTHOC = POSTHOC{1};
+      case 'char'
+        switch (lower (POSTHOC))
+          case {'none', ''}
+            pairs = [];
+          otherwise
             if (strcmp (POSTHOC, 'trt.vs.ctrl'))
               POSTHOC = 'trt_vs_ctrl';
             elseif (~ ismember (POSTHOC, {'pairwise', 'trt_vs_ctrl'}))
@@ -1145,12 +1145,12 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
                              ' ''pairwise'' and ''trt_vs_ctrl'''))
             end
             pairs = feval (POSTHOC, L);
-          otherwise
-            pairs = unique_stable (POSTHOC, 'rows');
-            if (size (pairs, 2) > 2)
-              error (cat (2, 'bootlm: pairs matrix defining posthoc', ...
-                             ' comparisons must have exactly two columns'))
-            end
+        end
+      otherwise
+        pairs = unique_stable (POSTHOC, 'rows');
+        if (size (pairs, 2) > 2)
+          error (cat (2, 'bootlm: pairs matrix defining posthoc', ...
+                         ' comparisons must have exactly two columns'))
         end
     end
 
@@ -1159,13 +1159,12 @@ function [STATS, BOOTSTAT, AOVSTAT, PRED_ERR, MAT] = bootlm (Y, GROUP, varargin)
     if isempty (DIM)
       % Do nothing, we already assigned an empty value to L
     else
-      switch (lower (POSTHOC))
-        case {'none', [], ''}
-          % Assign the hypothesis matrix for computing estimated marginal means
-          MAT.L = L;
-        otherwise
-          % Assign the hypothesis matrix for computing posthoc comparisons
-          MAT.L = make_test_matrix (L, pairs);
+      if (isempty (pairs))
+        % Assign the hypothesis matrix for computing estimated marginal means
+        MAT.L = L;
+      else
+        % Assign the hypothesis matrix for computing posthoc comparisons
+        MAT.L = make_test_matrix (L, pairs);
       end
     end
     if (~ NBOOT)

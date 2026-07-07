@@ -506,7 +506,7 @@
 %        Information Criteria and Statistical Modeling. Springer Series in
 %        Statistics. Springer, NY.
 %
-%  bootlm (version 2024.07.08)
+%  bootlm (version 2026.07.06)
 %  Author: Andrew Charles Penn
 %  https://www.researchgate.net/profile/Andrew_Penn/
 %

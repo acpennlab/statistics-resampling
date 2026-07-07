@@ -1,5 +1,0 @@
-name: "My Custom Deploy Action"
-description: "Deploys static files using Node 20"
-runs:
-  using: "node20"
-  main: "main.js"
